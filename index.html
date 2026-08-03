@@ -112,6 +112,7 @@
 
   .empty{color:var(--text-dim);text-align:center;padding:40px 20px;font-size:13px;}
   .section-label{color:var(--text-dim);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin:18px 0 8px;}
+  .save-warning{background:#3a1f1f;border:1px solid var(--danger);color:#ffb4ac;padding:10px 12px;border-radius:10px;font-size:12px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:10px;line-height:1.4;}
 </style>
 </head>
 <body>
@@ -262,6 +263,23 @@ function defaultWorkouts(){
   ];
 }
 
+function pumpWorkoutTemplate(){
+  return { id: uid(), name:'Day 6 · Pump', note:'Bônus curto — pense nele como 20-25min de peso + 30min de esteira', exercises: [
+    {id:uid(), name:'Supino Reto com Halteres', muscle:'Peito', sets:3, reps:15, weight:0, rest:40, unit:'reps', equipment:'Halteres, Banco', video:'',
+      execution:'Deite no banco reto com um halter em cada mão, cotovelos a cerca de 45 graus do tronco. Empurre os halteres para cima até quase se tocarem, sem travar os cotovelos, e desça controlado sentindo alongar o peito.'},
+    {id:uid(), name:'Leg Press 45', muscle:'Perna', sets:3, reps:15, weight:0, rest:40, unit:'reps', equipment:'Leg Press', video:'',
+      execution:'Pés na largura dos ombros na plataforma, levemente à frente. Desça controlado até cerca de 90 graus no joelho, sem tirar a lombar do encosto, e empurre sem travar os joelhos no topo.'},
+    {id:uid(), name:'Desenvolvimento com Halteres', muscle:'Ombro', sets:3, reps:15, weight:0, rest:40, unit:'reps', equipment:'Halteres, Banco', video:'',
+      execution:'Sentado com apoio nas costas, halteres na altura dos ombros, palmas à frente. Empurre os halteres para cima até quase estender os cotovelos, sem travar, e desça controlado até a altura inicial.'},
+    {id:uid(), name:'Rosca Direta com Halteres', muscle:'Bíceps', sets:3, reps:15, weight:0, rest:30, unit:'reps', equipment:'Halteres', video:'',
+      execution:'Em pé, halteres ao lado do corpo, cotovelos fixos junto ao tronco. Flexione os cotovelos elevando os halteres até a altura do ombro, sem balançar o corpo, e desça controlado.'},
+    {id:uid(), name:'Tríceps Testa com Barra W', muscle:'Tríceps', sets:3, reps:15, weight:0, rest:30, unit:'reps', equipment:'Barra W, Banco', video:'',
+      execution:'Deitado no banco, segure a barra W acima do peito com pegada fechada. Flexione os cotovelos descendo a barra em direção à testa, mantendo os braços fixos, e estenda de volta sem travar com força total.'},
+    {id:uid(), name:'Abdominal na Polia em Pé', muscle:'Abdômen', sets:3, reps:15, weight:0, rest:30, unit:'reps', equipment:'Polia', video:'',
+      execution:'Fique de frente para a polia alta, segure a corda atrás da nuca, quadril fixo. Flexione o tronco para baixo contraindo o abdômen, sem puxar com os braços ou dobrar os joelhos.'}
+  ]};
+}
+
 function buildExecutionLookup(){
   const lookup = {};
   defaultWorkouts().forEach(function(w){ w.exercises.forEach(function(e){ lookup[e.name] = e.execution; }); });
@@ -271,13 +289,13 @@ function buildExecutionLookup(){
 let state = {
   workouts: [], sessions: [], activeWorkoutId: null, view: 'treino',
   activeExerciseId: null, activeTab: 'execucao', editMode: false,
-  session: null, openHistoryId: null,
+  session: null, openHistoryId: null, saveError: false, lastSaveErrorMsg: '',
   timer: { running:false, remaining:0, total:0, tickHandle:null, done:false }
 };
 
 async function loadData(){
   try{
-    const res = await window.storage.get('app-data');
+    const res = await window.storage.get('app-data', false);
     if(res && res.value){
       const parsed = JSON.parse(res.value);
       state.workouts = (parsed.workouts && parsed.workouts.length) ? parsed.workouts : defaultWorkouts();
@@ -299,12 +317,17 @@ async function loadData(){
     if(ex.video === undefined) ex.video = '';
     delete ex.image;
   }); });
+
+  if(!state.workouts.some(function(w){ return w.name === 'Day 6 · Pump'; })){
+    state.workouts.push(pumpWorkoutTemplate());
+  }
+
   await saveData();
 
   state.activeWorkoutId = state.workouts[0] ? state.workouts[0].id : null;
 
   try{
-    const cur = await window.storage.get('current-session');
+    const cur = await window.storage.get('current-session', false);
     if(cur && cur.value){
       state.session = JSON.parse(cur.value);
       state.activeWorkoutId = state.session.workoutId;
@@ -314,16 +337,72 @@ async function loadData(){
   render();
 }
 
+async function storageSet(key, value){
+  try{
+    const res = await window.storage.set(key, value, false);
+    state.saveError = false;
+    state.lastSaveErrorMsg = '';
+    return res;
+  }catch(e){
+    console.error('storage set failed', e);
+    state.lastSaveErrorMsg = (e && e.message) ? e.message : String(e);
+    state.saveError = true;
+    renderSaveWarningOnly();
+    return null;
+  }
+}
 async function saveData(){
-  try{ await window.storage.set('app-data', JSON.stringify({workouts: state.workouts, sessions: state.sessions})); }
-  catch(e){ console.error('storage set failed', e); }
+  await storageSet('app-data', JSON.stringify({workouts: state.workouts, sessions: state.sessions}));
 }
 async function saveSession(){
-  try{ if(state.session) await window.storage.set('current-session', JSON.stringify(state.session)); }
-  catch(e){ console.error('session save failed', e); }
+  if(state.session) await storageSet('current-session', JSON.stringify(state.session));
 }
 async function clearSessionStorage(){
-  try{ await window.storage.delete('current-session'); }catch(e){ }
+  try{ await window.storage.delete('current-session', false); }catch(e){ }
+}
+function retrySave(){
+  saveData();
+  if(state.session) saveSession();
+}
+function renderSaveWarningOnly(){
+  const el = document.getElementById('save-warning-slot');
+  if(el) el.innerHTML = saveWarningHtml();
+}
+function saveWarningHtml(){
+  if(!state.saveError) return '';
+  return '<div class="save-warning">⚠️ O salvamento automático não está funcionando neste ambiente. Use "Copiar backup" com frequência para não perder dados.'
+    + (state.lastSaveErrorMsg ? ('<br><span style="opacity:0.65;font-size:10px;">'+state.lastSaveErrorMsg+'</span>') : '')
+    + '<div style="display:flex;gap:6px;margin-top:8px;">'
+    + '<button class="btn btn-sm" style="background:var(--danger);color:#fff;flex:1;" onclick="retrySave()">Tentar salvar</button>'
+    + '<button class="btn btn-sm btn-ghost" style="flex:1;" onclick="exportBackup()">Copiar backup</button>'
+    + '</div></div>';
+}
+function exportBackup(){
+  const payload = JSON.stringify({workouts: state.workouts, sessions: state.sessions});
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(payload).then(function(){
+      alert('Backup copiado! Cole em um bloco de notas (Notas, WhatsApp pra você mesmo, etc.) pra guardar. Quando quiser restaurar, use "Importar backup" e cole o texto de volta.');
+    }).catch(function(){
+      window.prompt('Não consegui copiar automaticamente. Selecione e copie o texto abaixo (Ctrl/Cmd+A, depois Ctrl/Cmd+C):', payload);
+    });
+  } else {
+    window.prompt('Selecione e copie o texto abaixo (Ctrl/Cmd+A, depois Ctrl/Cmd+C):', payload);
+  }
+}
+function importBackup(){
+  const pasted = window.prompt('Cole aqui o texto do backup que você copiou antes:');
+  if(!pasted) return;
+  try{
+    const parsed = JSON.parse(pasted);
+    if(!parsed.workouts) throw new Error('formato inválido');
+    state.workouts = parsed.workouts;
+    state.sessions = parsed.sessions || [];
+    alert('Backup restaurado! Vou tentar salvar automaticamente também, mas seus dados já estão aqui na tela.');
+    saveData();
+    render();
+  }catch(e){
+    alert('Não consegui ler esse backup. Confira se colou o texto completo.');
+  }
 }
 
 function activeWorkout(){ return state.workouts.find(function(w){ return w.id === state.activeWorkoutId; }) || null; }
@@ -575,7 +654,7 @@ function treinoViewHtml(){
   const header = inSession ?
     '<div class="wk-header"><div><h2>'+wk.name+'</h2><div class="wk-meta">Treino em andamento</div></div>'
     + '<div class="btn-row"><button class="btn btn-ghost btn-sm" onclick="cancelSession()">Cancelar</button></div></div>' :
-    '<div class="wk-header"><div><h2>'+wk.name+'</h2><div class="wk-meta">'+wk.exercises.length+' exercícios</div></div>'
+    '<div class="wk-header"><div><h2>'+wk.name+'</h2><div class="wk-meta">'+wk.exercises.length+' exercícios'+(wk.note?(' · '+wk.note):'')+'</div></div>'
     + '<div class="btn-row"><button class="btn btn-ghost btn-sm" onclick="state.editMode=!state.editMode;render()">'+(state.editMode?'Concluir':'Editar')+'</button>'
     + (!state.editMode ? '<button class="btn btn-primary btn-sm" onclick="startSession(activeWorkout())">Iniciar</button>' : '') + '</div></div>';
 
@@ -703,7 +782,12 @@ function render(){
     }).join('') + '<div class="wchip add" onclick="if(!state.session) addWorkout()">+ Novo</div>';
     content = state.view==='treino'
       ? '<div class="chip-row">'+chips+'</div>' + treinoViewHtml()
-      : '<div class="section-label">Sessões anteriores</div>' + historyViewHtml();
+      : '<div class="section-label">Sessões anteriores</div>'
+        + '<div style="display:flex;gap:8px;margin-bottom:14px;">'
+        + '<button class="btn btn-ghost btn-sm" style="flex:1;" onclick="exportBackup()">📋 Copiar backup</button>'
+        + '<button class="btn btn-ghost btn-sm" style="flex:1;" onclick="importBackup()">📥 Importar backup</button>'
+        + '</div>'
+        + historyViewHtml();
   }
 
   const html = (state.view !== 'exercicio' ?
@@ -711,6 +795,7 @@ function render(){
     + '<button class="'+(state.view==='treino'?'active':'')+'" onclick="state.view=\'treino\';render()">Treino</button>'
     + '<button class="'+(state.view==='historico'?'active':'')+'" onclick="state.view=\'historico\';render()">Histórico</button>'
     + '</div></div>' : '')
+    + '<div id="save-warning-slot">'+saveWarningHtml()+'</div>'
     + content + '<div id="timer-slot">'+timerBarHtml()+'</div>';
 
   document.getElementById('app').innerHTML = html;

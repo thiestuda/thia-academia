@@ -112,7 +112,12 @@
 
   .empty{color:var(--text-dim);text-align:center;padding:40px 20px;font-size:13px;}
   .section-label{color:var(--text-dim);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin:18px 0 8px;}
-  .save-warning{background:#3a1f1f;border:1px solid var(--danger);color:#ffb4ac;padding:10px 12px;border-radius:10px;font-size:12px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:10px;line-height:1.4;}
+  .save-warning{background:#3a1f1f;border:1px solid var(--danger);color:#ffb4ac;padding:10px 12px;border-radius:10px;font-size:12px;margin-bottom:14px;display:flex;flex-direction:column;gap:0;line-height:1.4;}
+  .toast{position:fixed;left:16px;right:16px;bottom:96px;max-width:488px;margin:0 auto;background:var(--surface-2);border:1px solid var(--border);color:var(--text);padding:12px 14px;border-radius:10px;font-size:12.5px;z-index:60;box-shadow:0 6px 24px rgba(0,0,0,0.5);transition:opacity 0.3s, transform 0.3s;}
+  .ai-fab{position:fixed;bottom:100px;right:16px;z-index:15;width:52px;height:52px;border-radius:50%;background:var(--accent);border:none;font-size:22px;box-shadow:0 4px 14px rgba(0,0,0,0.4);cursor:pointer;}
+  .ai-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:40;display:flex;align-items:flex-end;}
+  .ai-panel{background:var(--bg);width:100%;max-width:520px;margin:0 auto;border-top-left-radius:18px;border-top-right-radius:18px;padding:16px;max-height:78vh;display:flex;flex-direction:column;border:1px solid var(--border);}
+  .ai-msg{max-width:82%;padding:9px 12px;border-radius:12px;font-size:13px;line-height:1.45;margin-bottom:8px;}
 </style>
 </head>
 <body>
@@ -287,15 +292,89 @@ function buildExecutionLookup(){
 }
 
 let state = {
+  profile: null, profiles: [],
   workouts: [], sessions: [], activeWorkoutId: null, view: 'treino',
   activeExerciseId: null, activeTab: 'execucao', editMode: false,
   session: null, openHistoryId: null, saveError: false, lastSaveErrorMsg: '',
+  addingWorkout: false, confirmDeleteWorkoutId: null, backupBoxMode: null, backupBoxText: '',
+  aiOpen: false, aiMessages: [], aiThinking: false,
   timer: { running:false, remaining:0, total:0, tickHandle:null, done:false }
 };
 
+function scopedKey(base){ return base + '::' + (state.profile || 'default'); }
+
+async function loadProfiles(){
+  try{
+    const res = await window.storage.get('profiles-list', false);
+    state.profiles = (res && res.value) ? JSON.parse(res.value) : [];
+  }catch(e){ state.profiles = []; }
+  try{
+    const res2 = await window.storage.get('active-profile', false);
+    state.profile = (res2 && res2.value) ? res2.value : null;
+  }catch(e){ state.profile = null; }
+}
+async function saveProfilesList(){
+  await storageSet('profiles-list', JSON.stringify(state.profiles));
+}
+function selectProfile(name){
+  state.profile = name;
+  storageSet('active-profile', name);
+  loadData();
+}
+async function migrateLegacyData(profileName){
+  try{
+    const legacy = await window.storage.get('app-data', false);
+    if(legacy && legacy.value){
+      await window.storage.set('app-data::' + profileName, legacy.value, false);
+    }
+  }catch(e){ /* sem dados antigos ou storage indisponível — segue sem migrar */ }
+  try{
+    const legacySession = await window.storage.get('current-session', false);
+    if(legacySession && legacySession.value){
+      await window.storage.set('current-session::' + profileName, legacySession.value, false);
+    }
+  }catch(e){ }
+}
+async function createProfile(){
+  const inp = document.getElementById('new-profile-input');
+  const name = inp ? inp.value.trim() : '';
+  if(!name){ showToast('Digite um nome para o perfil.'); return; }
+  const isFirstProfile = state.profiles.length === 0;
+  if(!state.profiles.includes(name)){
+    state.profiles.push(name);
+    saveProfilesList();
+  }
+  if(isFirstProfile){
+    showToast('Recuperando seus treinos salvos...');
+    await migrateLegacyData(name);
+  }
+  selectProfile(name);
+}
+function switchProfile(){
+  stopTimer();
+  state.profile = null;
+  state.session = null;
+  state.view = 'treino';
+  storageSet('active-profile', '');
+  render();
+}
+function perfilViewHtml(){
+  const list = state.profiles.map(function(p){
+    return '<button class="btn btn-ghost" style="width:100%;text-align:left;margin-bottom:8px;padding:14px 16px;font-size:15px;" onclick="selectProfile(\''+p+'\')">👤 '+p+'</button>';
+  }).join('');
+  return '<div style="text-align:center;padding:50px 10px 24px;">'
+    + '<h1 style="font-size:26px;">Treino<span style="color:var(--accent)">Log</span></h1>'
+    + '<div class="wk-meta" style="margin-bottom:22px;">Quem está treinando?</div></div>'
+    + '<div>' + (list || '<div class="empty">Nenhum perfil ainda. Crie o primeiro abaixo.</div>') + '</div>'
+    + '<div style="margin-top:14px;">'
+    + '<input id="new-profile-input" placeholder="Nome do novo perfil" style="width:100%;background:var(--surface-2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:13px;font-size:14px;margin-bottom:8px;" onkeydown="if(event.key===\'Enter\') createProfile()">'
+    + '<button class="btn btn-primary" style="width:100%;padding:14px;" onclick="createProfile()">+ Criar novo perfil</button>'
+    + '</div>';
+}
+
 async function loadData(){
   try{
-    const res = await window.storage.get('app-data', false);
+    const res = await window.storage.get(scopedKey('app-data'), false);
     if(res && res.value){
       const parsed = JSON.parse(res.value);
       state.workouts = (parsed.workouts && parsed.workouts.length) ? parsed.workouts : defaultWorkouts();
@@ -327,7 +406,7 @@ async function loadData(){
   state.activeWorkoutId = state.workouts[0] ? state.workouts[0].id : null;
 
   try{
-    const cur = await window.storage.get('current-session', false);
+    const cur = await window.storage.get(scopedKey('current-session'), false);
     if(cur && cur.value){
       state.session = JSON.parse(cur.value);
       state.activeWorkoutId = state.session.workoutId;
@@ -352,13 +431,13 @@ async function storageSet(key, value){
   }
 }
 async function saveData(){
-  await storageSet('app-data', JSON.stringify({workouts: state.workouts, sessions: state.sessions}));
+  await storageSet(scopedKey('app-data'), JSON.stringify({workouts: state.workouts, sessions: state.sessions}));
 }
 async function saveSession(){
-  if(state.session) await storageSet('current-session', JSON.stringify(state.session));
+  if(state.session) await storageSet(scopedKey('current-session'), JSON.stringify(state.session));
 }
 async function clearSessionStorage(){
-  try{ await window.storage.delete('current-session', false); }catch(e){ }
+  try{ await window.storage.delete(scopedKey('current-session'), false); }catch(e){ }
 }
 function retrySave(){
   saveData();
@@ -381,28 +460,137 @@ function exportBackup(){
   const payload = JSON.stringify({workouts: state.workouts, sessions: state.sessions});
   if(navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(payload).then(function(){
-      alert('Backup copiado! Cole em um bloco de notas (Notas, WhatsApp pra você mesmo, etc.) pra guardar. Quando quiser restaurar, use "Importar backup" e cole o texto de volta.');
+      showToast('Backup copiado! Cole nas Notas do celular (ou onde preferir) pra guardar.');
     }).catch(function(){
-      window.prompt('Não consegui copiar automaticamente. Selecione e copie o texto abaixo (Ctrl/Cmd+A, depois Ctrl/Cmd+C):', payload);
+      state.backupBoxMode = 'export';
+      state.backupBoxText = payload;
+      render();
     });
   } else {
-    window.prompt('Selecione e copie o texto abaixo (Ctrl/Cmd+A, depois Ctrl/Cmd+C):', payload);
+    state.backupBoxMode = 'export';
+    state.backupBoxText = payload;
+    render();
   }
 }
-function importBackup(){
-  const pasted = window.prompt('Cole aqui o texto do backup que você copiou antes:');
-  if(!pasted) return;
+function toggleImportBox(){
+  state.backupBoxMode = state.backupBoxMode === 'import' ? null : 'import';
+  render();
+}
+function closeBackupBox(){ state.backupBoxMode = null; render(); }
+function submitImportBackup(){
+  const ta = document.getElementById('backup-textarea');
+  const pasted = ta ? ta.value.trim() : '';
+  if(!pasted){ showToast('Cole o backup antes de importar.'); return; }
   try{
     const parsed = JSON.parse(pasted);
     if(!parsed.workouts) throw new Error('formato inválido');
     state.workouts = parsed.workouts;
     state.sessions = parsed.sessions || [];
-    alert('Backup restaurado! Vou tentar salvar automaticamente também, mas seus dados já estão aqui na tela.');
+    state.backupBoxMode = null;
+    showToast('Backup restaurado!');
     saveData();
     render();
   }catch(e){
-    alert('Não consegui ler esse backup. Confira se colou o texto completo.');
+    showToast('Não consegui ler esse backup. Confira se colou o texto completo.');
   }
+}
+function backupBoxHtml(){
+  if(state.backupBoxMode === 'export'){
+    return '<div class="add-ex-form"><div style="font-size:11.5px;margin-bottom:6px;color:var(--text-dim);">Selecione tudo e copie manualmente:</div>'
+      + '<textarea readonly style="width:100%;height:90px;background:var(--surface-2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px;font-size:10.5px;" onclick="this.select()">'+state.backupBoxText+'</textarea>'
+      + '<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:8px;" onclick="closeBackupBox()">Fechar</button></div>';
+  }
+  if(state.backupBoxMode === 'import'){
+    return '<div class="add-ex-form"><textarea id="backup-textarea" placeholder="Cole aqui o backup copiado antes" style="width:100%;height:90px;background:var(--surface-2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px;font-size:12px;"></textarea>'
+      + '<div style="display:flex;gap:8px;margin-top:8px;"><button class="btn btn-primary" style="flex:1;" onclick="submitImportBackup()">Restaurar</button>'
+      + '<button class="btn btn-ghost" style="flex:1;" onclick="closeBackupBox()">Cancelar</button></div></div>';
+  }
+  return '';
+}
+
+function showToast(msg){
+  let el = document.getElementById('toast-el');
+  if(el) el.remove();
+  el = document.createElement('div');
+  el.id = 'toast-el';
+  el.className = 'toast';
+  el.textContent = msg;
+  document.body.appendChild(el);
+  clearTimeout(window._toastTimeout);
+  window._toastTimeout = setTimeout(function(){
+    el.style.opacity = '0';
+    setTimeout(function(){ if(el) el.remove(); }, 300);
+  }, 3800);
+}
+
+// ---------- Agente de IA (tira-dúvidas dentro do app) ----------
+function toggleAI(){
+  state.aiOpen = !state.aiOpen;
+  render();
+  if(state.aiOpen) setTimeout(scrollAIToBottom, 50);
+}
+function scrollAIToBottom(){
+  const el = document.getElementById('ai-messages');
+  if(el) el.scrollTop = el.scrollHeight;
+}
+async function sendAIMessage(){
+  const inp = document.getElementById('ai-input');
+  const text = inp ? inp.value.trim() : '';
+  if(!text) return;
+  if(inp) inp.value = '';
+  state.aiMessages.push({role:'user', content:text});
+  state.aiThinking = true;
+  render();
+  scrollAIToBottom();
+
+  let contextNote = '';
+  const wk = activeWorkout();
+  if(state.view === 'exercicio' && state.activeExerciseId && wk){
+    const ex = wk.exercises.find(function(e){ return e.id === state.activeExerciseId; });
+    if(ex) contextNote = 'Contexto: o usuário está olhando o exercício "'+ex.name+'" ('+ex.muscle+', equipamento: '+ex.equipment+'). ';
+  } else if(wk){
+    contextNote = 'Contexto: o usuário está no treino "'+wk.name+'". ';
+  }
+
+  try{
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 700,
+        messages: [
+          { role:'user', content: contextNote + 'Você é um assistente dentro de um app de treino de academia. Responda em português, de forma curta, direta e prática (poucas frases, sem enrolação). Pode falar sobre execução de exercícios, músculos trabalhados, dúvidas de treino e nutrição básica. Pergunta do usuário: ' + text }
+        ]
+      })
+    });
+    const data = await response.json();
+    const textResp = (data.content || []).filter(function(b){ return b.type === 'text'; }).map(function(b){ return b.text; }).join('\n');
+    state.aiMessages.push({role:'assistant', content: textResp || 'Não consegui responder agora, tenta de novo.'});
+  }catch(e){
+    state.aiMessages.push({role:'assistant', content:'Erro ao consultar o assistente. Tenta de novo em alguns segundos.'});
+  }
+  state.aiThinking = false;
+  render();
+  scrollAIToBottom();
+}
+function aiFabHtml(){
+  return '<button class="ai-fab" onclick="toggleAI()" title="Tirar dúvidas">💬</button>';
+}
+function aiPanelHtml(){
+  if(!state.aiOpen) return '';
+  const msgs = state.aiMessages.map(function(m){
+    const isUser = m.role === 'user';
+    return '<div style="display:flex;justify-content:'+(isUser?'flex-end':'flex-start')+';">'
+      + '<div class="ai-msg" style="background:'+(isUser?'var(--accent)':'var(--surface-2)')+';color:'+(isUser?'#14150f':'var(--text)')+';">'+m.content.replace(/\n/g,'<br>')+'</div></div>';
+  }).join('');
+  const thinking = state.aiThinking ? '<div style="display:flex;justify-content:flex-start;"><div class="ai-msg" style="background:var(--surface-2);color:var(--text-dim);">Pensando...</div></div>' : '';
+  return '<div class="ai-overlay" onclick="if(event.target===this) toggleAI()"><div class="ai-panel">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"><h3 style="margin:0;font-size:15px;">💬 Tira-dúvidas</h3><div class="btn-back" onclick="toggleAI()">✕</div></div>'
+    + '<div id="ai-messages" style="flex:1;overflow-y:auto;margin-bottom:10px;">' + (msgs || '<div class="empty" style="padding:20px 0;">Pergunte algo sobre execução, músculos trabalhados, ou o treino de hoje.</div>') + thinking + '</div>'
+    + '<div style="display:flex;gap:8px;"><input id="ai-input" placeholder="Digite sua dúvida..." style="flex:1;background:var(--surface-2);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:11px 12px;font-size:13px;" onkeydown="if(event.key===\'Enter\') sendAIMessage()">'
+    + '<button class="btn btn-primary" onclick="sendAIMessage()">Enviar</button></div>'
+    + '</div></div>';
 }
 
 function activeWorkout(){ return state.workouts.find(function(w){ return w.id === state.activeWorkoutId; }) || null; }
@@ -418,20 +606,28 @@ function musclesDoneInSession(){
   return s;
 }
 
-function addWorkout(){
-  const name = prompt('Nome do novo treino (ex: Costas e Bíceps):');
-  if(!name) return;
+function startAddWorkout(){ state.addingWorkout = true; render(); }
+function submitAddWorkout(){
+  const inp = document.getElementById('new-workout-input');
+  const name = inp ? inp.value.trim() : '';
+  if(!name){ showToast('Digite um nome para o treino.'); return; }
   const wk = { id: uid(), name: name, exercises: [] };
   state.workouts.push(wk);
   state.activeWorkoutId = wk.id;
   state.editMode = true;
+  state.addingWorkout = false;
   saveData(); render();
 }
 function deleteWorkout(id){
-  if(!confirm('Excluir este treino permanentemente? Isso não apaga o histórico já salvo.')) return;
+  if(state.confirmDeleteWorkoutId !== id){
+    state.confirmDeleteWorkoutId = id;
+    render();
+    return;
+  }
   state.workouts = state.workouts.filter(function(w){ return w.id !== id; });
   state.activeWorkoutId = state.workouts[0] ? state.workouts[0].id : null;
   state.editMode = false;
+  state.confirmDeleteWorkoutId = null;
   saveData(); render();
 }
 function moveExercise(wk, idx, dir){
@@ -451,7 +647,7 @@ function submitAddExercise(wk){
   const reps = Number(document.getElementById('nex-reps').value) || 10;
   const weight = Number(document.getElementById('nex-weight').value) || 0;
   const rest = Number(document.getElementById('nex-rest').value) || 60;
-  if(!name){ alert('Digite um nome para o exercício.'); return; }
+  if(!name){ showToast('Digite um nome para o exercício.'); return; }
   wk.exercises.push({id:uid(), name:name, muscle:muscle, sets:sets, reps:reps, weight:weight, rest:rest, equipment:'Livre/Máquina', execution:'', video:'', unit:'reps'});
   saveData(); render();
 }
@@ -496,15 +692,23 @@ function toggleSet(exId, setIdx){
         }
       }, 700);
     } else if(allDone){
-      setTimeout(function(){ alert('Todos os exercícios concluídos! Toque em "Finalizar treino" para salvar.'); }, 700);
+      setTimeout(function(){ showToast('Todos os exercícios concluídos! Toque em "Finalizar treino" para salvar.'); }, 700);
     }
   }
   saveSession(); render();
 }
 function updateSetField(exId, setIdx, field, value){
-  const st = state.session.entries[exId].sets[setIdx];
-  st[field] = value === '' ? 0 : Number(value);
+  const entry = state.session.entries[exId];
+  const v = value === '' ? 0 : Number(value);
+  entry.sets[setIdx][field] = v;
+  // a partir da série editada, propaga o mesmo valor pras próximas que ainda não foram feitas
+  for(let i = setIdx + 1; i < entry.sets.length; i++){
+    if(!entry.sets[i].done){
+      entry.sets[i][field] = v;
+    }
+  }
   saveSession();
+  render();
 }
 function addSet(exId){
   if(!state.session) return;
@@ -648,7 +852,7 @@ function timerBarHtml(){
 
 function treinoViewHtml(){
   const wk = activeWorkout();
-  if(!wk) return '<div class="empty">Nenhum treino ainda.<br><br><button class="btn btn-primary" onclick="addWorkout()">+ Criar treino</button></div>';
+  if(!wk) return '<div class="empty">Nenhum treino ainda.<br><br><button class="btn btn-primary" onclick="startAddWorkout()">+ Criar treino</button></div>';
   const inSession = state.session && state.session.workoutId === wk.id;
 
   const header = inSession ?
@@ -690,7 +894,8 @@ function treinoViewHtml(){
       + statusHtml + '</div>' + editControls + '</div>';
   }).join('');
 
-  const editExtra = (state.editMode && !inSession) ? addExerciseFormHtml() + '<button class="btn btn-danger" style="margin-top:14px;width:100%" onclick="deleteWorkout(\''+wk.id+'\')">Excluir treino completo</button>' : '';
+  const deleteLabel = state.confirmDeleteWorkoutId === wk.id ? 'Toque de novo para confirmar a exclusão' : 'Excluir treino completo';
+  const editExtra = (state.editMode && !inSession) ? addExerciseFormHtml() + '<button class="btn btn-danger" style="margin-top:14px;width:100%" onclick="deleteWorkout(\''+wk.id+'\')">'+deleteLabel+'</button>' : '';
   const finishBar = inSession ? '<div class="finish-bar"><button class="btn btn-primary" onclick="finishSession()">Finalizar treino</button></div>' : '';
 
   return header + stripHtml + cards + editExtra + finishBar;
@@ -773,36 +978,57 @@ function historyViewHtml(){
 }
 
 function render(){
+  if(!state.profile){
+    document.getElementById('app').innerHTML = perfilViewHtml();
+    return;
+  }
   let content = '';
   if(state.view === 'exercicio'){
     content = exercicioViewHtml();
   } else {
     const chips = state.workouts.map(function(w){
       return '<div class="wchip '+(w.id===state.activeWorkoutId && !state.session ? 'active':'')+'" onclick="if(!state.session){state.activeWorkoutId=\''+w.id+'\';state.editMode=false;render();}">'+w.name+'</div>';
-    }).join('') + '<div class="wchip add" onclick="if(!state.session) addWorkout()">+ Novo</div>';
+    }).join('') + '<div class="wchip add" onclick="if(!state.session) startAddWorkout()">+ Novo</div>';
+
+    const addWorkoutForm = (state.addingWorkout && !state.session) ?
+      '<div class="add-ex-form"><input id="new-workout-input" placeholder="Nome do novo treino (ex: Costas e Bíceps)" onkeydown="if(event.key===\'Enter\') submitAddWorkout()">'
+      + '<div style="display:flex;gap:8px;"><button class="btn btn-primary" style="flex:1;" onclick="submitAddWorkout()">Criar</button>'
+      + '<button class="btn btn-ghost" style="flex:1;" onclick="state.addingWorkout=false;render()">Cancelar</button></div></div>' : '';
+
     content = state.view==='treino'
-      ? '<div class="chip-row">'+chips+'</div>' + treinoViewHtml()
+      ? '<div class="chip-row">'+chips+'</div>' + addWorkoutForm + treinoViewHtml()
       : '<div class="section-label">Sessões anteriores</div>'
         + '<div style="display:flex;gap:8px;margin-bottom:14px;">'
         + '<button class="btn btn-ghost btn-sm" style="flex:1;" onclick="exportBackup()">📋 Copiar backup</button>'
-        + '<button class="btn btn-ghost btn-sm" style="flex:1;" onclick="importBackup()">📥 Importar backup</button>'
-        + '</div>'
+        + '<button class="btn btn-ghost btn-sm" style="flex:1;" onclick="toggleImportBox()">📥 Importar backup</button>'
+        + '</div>' + backupBoxHtml()
         + historyViewHtml();
   }
 
   const html = (state.view !== 'exercicio' ?
-    '<div class="topbar"><h1>Treino<span>Log</span></h1><div class="view-toggle">'
+    '<div class="topbar"><h1>Treino<span>Log</span></h1><div style="display:flex;align-items:center;gap:8px;">'
+    + '<button class="btn btn-ghost btn-sm" onclick="switchProfile()" title="Trocar perfil">👤 '+state.profile+'</button>'
+    + '<div class="view-toggle">'
     + '<button class="'+(state.view==='treino'?'active':'')+'" onclick="state.view=\'treino\';render()">Treino</button>'
     + '<button class="'+(state.view==='historico'?'active':'')+'" onclick="state.view=\'historico\';render()">Histórico</button>'
-    + '</div></div>' : '')
+    + '</div></div></div>' : '')
     + '<div id="save-warning-slot">'+saveWarningHtml()+'</div>'
-    + content + '<div id="timer-slot">'+timerBarHtml()+'</div>';
+    + content + '<div id="timer-slot">'+timerBarHtml()+'</div>'
+    + aiFabHtml() + aiPanelHtml();
 
   document.getElementById('app').innerHTML = html;
   attachTimerEvents();
 }
 
-loadData();
+async function boot(){
+  await loadProfiles();
+  if(state.profile){
+    await loadData();
+  } else {
+    render();
+  }
+}
+boot();
 </script>
 </body>
 </html>

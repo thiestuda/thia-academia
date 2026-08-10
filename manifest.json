@@ -1,0 +1,17 @@
+{
+  "name": "TreinoLog",
+  "short_name": "TreinoLog",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#121314",
+  "theme_color": "#121314",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

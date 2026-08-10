@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#121314">
 <title>Treino Log</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -124,6 +126,27 @@
 <div id="app"></div>
 
 <script>
+const LocalStore = {
+  async get(key){
+    try{
+      const v = localStorage.getItem(key);
+      return v !== null ? {key: key, value: v} : null;
+    }catch(e){ return null; }
+  },
+  async set(key, value){
+    localStorage.setItem(key, value);
+    return {key: key, value: value};
+  },
+  async delete(key){
+    try{ localStorage.removeItem(key); }catch(e){ }
+  }
+};
+if('serviceWorker' in navigator){
+  window.addEventListener('load', function(){
+    navigator.serviceWorker.register('sw.js').catch(function(){ /* ok se falhar */ });
+  });
+}
+
 const MUSCLES = {
   'Peito':'#E8735A','Costas':'#5AA9E8','Ombro':'#E8B65A','Bíceps':'#8ADB6A',
   'Tríceps':'#4AC9B0','Abdômen':'#B18AE8','Trapézio':'#E86AAE','Antebraço':'#9098A8',
@@ -305,11 +328,11 @@ function scopedKey(base){ return base + '::' + (state.profile || 'default'); }
 
 async function loadProfiles(){
   try{
-    const res = await window.storage.get('profiles-list', false);
+    const res = await LocalStore.get('profiles-list');
     state.profiles = (res && res.value) ? JSON.parse(res.value) : [];
   }catch(e){ state.profiles = []; }
   try{
-    const res2 = await window.storage.get('active-profile', false);
+    const res2 = await LocalStore.get('active-profile');
     state.profile = (res2 && res2.value) ? res2.value : null;
   }catch(e){ state.profile = null; }
 }
@@ -323,15 +346,15 @@ function selectProfile(name){
 }
 async function migrateLegacyData(profileName){
   try{
-    const legacy = await window.storage.get('app-data', false);
+    const legacy = await LocalStore.get('app-data');
     if(legacy && legacy.value){
-      await window.storage.set('app-data::' + profileName, legacy.value, false);
+      await LocalStore.set('app-data::' + profileName, legacy.value);
     }
   }catch(e){ /* sem dados antigos ou storage indisponível — segue sem migrar */ }
   try{
-    const legacySession = await window.storage.get('current-session', false);
+    const legacySession = await LocalStore.get('current-session');
     if(legacySession && legacySession.value){
-      await window.storage.set('current-session::' + profileName, legacySession.value, false);
+      await LocalStore.set('current-session::' + profileName, legacySession.value);
     }
   }catch(e){ }
 }
@@ -374,7 +397,7 @@ function perfilViewHtml(){
 
 async function loadData(){
   try{
-    const res = await window.storage.get(scopedKey('app-data'), false);
+    const res = await LocalStore.get(scopedKey('app-data'));
     if(res && res.value){
       const parsed = JSON.parse(res.value);
       state.workouts = (parsed.workouts && parsed.workouts.length) ? parsed.workouts : defaultWorkouts();
@@ -406,7 +429,7 @@ async function loadData(){
   state.activeWorkoutId = state.workouts[0] ? state.workouts[0].id : null;
 
   try{
-    const cur = await window.storage.get(scopedKey('current-session'), false);
+    const cur = await LocalStore.get(scopedKey('current-session'));
     if(cur && cur.value){
       state.session = JSON.parse(cur.value);
       state.activeWorkoutId = state.session.workoutId;
@@ -418,7 +441,7 @@ async function loadData(){
 
 async function storageSet(key, value){
   try{
-    const res = await window.storage.set(key, value, false);
+    const res = await LocalStore.set(key, value);
     state.saveError = false;
     state.lastSaveErrorMsg = '';
     return res;
@@ -437,7 +460,7 @@ async function saveSession(){
   if(state.session) await storageSet(scopedKey('current-session'), JSON.stringify(state.session));
 }
 async function clearSessionStorage(){
-  try{ await window.storage.delete(scopedKey('current-session'), false); }catch(e){ }
+  try{ await LocalStore.delete(scopedKey('current-session')); }catch(e){ }
 }
 function retrySave(){
   saveData();
@@ -575,22 +598,16 @@ async function sendAIMessage(){
   scrollAIToBottom();
 }
 function aiFabHtml(){
-  return '<button class="ai-fab" onclick="toggleAI()" title="Tirar dúvidas">💬</button>';
+  return '<button class="ai-fab" onclick="toggleAI()" title="Tirar dúvidas (requer configuração)">💬</button>';
 }
 function aiPanelHtml(){
   if(!state.aiOpen) return '';
-  const msgs = state.aiMessages.map(function(m){
-    const isUser = m.role === 'user';
-    return '<div style="display:flex;justify-content:'+(isUser?'flex-end':'flex-start')+';">'
-      + '<div class="ai-msg" style="background:'+(isUser?'var(--accent)':'var(--surface-2)')+';color:'+(isUser?'#14150f':'var(--text)')+';">'+m.content.replace(/\n/g,'<br>')+'</div></div>';
-  }).join('');
-  const thinking = state.aiThinking ? '<div style="display:flex;justify-content:flex-start;"><div class="ai-msg" style="background:var(--surface-2);color:var(--text-dim);">Pensando...</div></div>' : '';
+  const notice = '<div class="empty" style="padding:16px 4px;">O chat de IA usava um recurso exclusivo do ambiente do Claude e não funciona neste site hospedado. '
+    + 'Pra reativar, você precisaria da sua própria chave de API da Anthropic e um pequeno backend (por segurança, uma chave não pode ficar exposta direto no HTML). '
+    + 'Posso te ajudar a montar isso se quiser.</div>';
   return '<div class="ai-overlay" onclick="if(event.target===this) toggleAI()"><div class="ai-panel">'
     + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"><h3 style="margin:0;font-size:15px;">💬 Tira-dúvidas</h3><div class="btn-back" onclick="toggleAI()">✕</div></div>'
-    + '<div id="ai-messages" style="flex:1;overflow-y:auto;margin-bottom:10px;">' + (msgs || '<div class="empty" style="padding:20px 0;">Pergunte algo sobre execução, músculos trabalhados, ou o treino de hoje.</div>') + thinking + '</div>'
-    + '<div style="display:flex;gap:8px;"><input id="ai-input" placeholder="Digite sua dúvida..." style="flex:1;background:var(--surface-2);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:11px 12px;font-size:13px;" onkeydown="if(event.key===\'Enter\') sendAIMessage()">'
-    + '<button class="btn btn-primary" onclick="sendAIMessage()">Enviar</button></div>'
-    + '</div></div>';
+    + notice + '</div></div>';
 }
 
 function activeWorkout(){ return state.workouts.find(function(w){ return w.id === state.activeWorkoutId; }) || null; }

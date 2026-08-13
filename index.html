@@ -320,7 +320,7 @@ let state = {
   activeExerciseId: null, activeTab: 'execucao', editMode: false,
   session: null, openHistoryId: null, saveError: false, lastSaveErrorMsg: '',
   addingWorkout: false, confirmDeleteWorkoutId: null, backupBoxMode: null, backupBoxText: '',
-  aiOpen: false, aiMessages: [], aiThinking: false,
+  aiOpen: false, aiMessages: [], aiThinking: false, dashboardExercise: null,
   timer: { running:false, remaining:0, total:0, tickHandle:null, done:false }
 };
 
@@ -400,13 +400,15 @@ async function loadData(){
     const res = await LocalStore.get(scopedKey('app-data'));
     if(res && res.value){
       const parsed = JSON.parse(res.value);
-      state.workouts = (parsed.workouts && parsed.workouts.length) ? parsed.workouts : defaultWorkouts();
+      state.workouts = parsed.workouts || [];
       state.sessions = parsed.sessions || [];
     } else {
-      state.workouts = defaultWorkouts();
+      // perfil confirmadamente novo (sem nenhum dado salvo) -> começa zerado
+      state.workouts = [];
       state.sessions = [];
     }
   }catch(e){
+    // falha ao ler o storage -> não dá pra saber se havia dados; mantém o plano padrão como rede de segurança
     state.workouts = defaultWorkouts();
     state.sessions = [];
   }
@@ -420,7 +422,7 @@ async function loadData(){
     delete ex.image;
   }); });
 
-  if(!state.workouts.some(function(w){ return w.name === 'Day 6 · Pump'; })){
+  if(state.workouts.length > 0 && !state.workouts.some(function(w){ return w.name === 'Day 6 · Pump'; })){
     state.workouts.push(pumpWorkoutTemplate());
   }
 
@@ -598,18 +600,16 @@ async function sendAIMessage(){
   scrollAIToBottom();
 }
 function aiFabHtml(){
-  return '<button class="ai-fab" onclick="toggleAI()" title="Tirar dúvidas (requer configuração)">💬</button>';
+  return '<button class="ai-fab" onclick="toggleAI()" title="Tirar duvidas (requer configuracao)">💬</button>';
 }
 function aiPanelHtml(){
   if(!state.aiOpen) return '';
-  const notice = '<div class="empty" style="padding:16px 4px;">O chat de IA usava um recurso exclusivo do ambiente do Claude e não funciona neste site hospedado. '
-    + 'Pra reativar, você precisaria da sua própria chave de API da Anthropic e um pequeno backend (por segurança, uma chave não pode ficar exposta direto no HTML). '
-    + 'Posso te ajudar a montar isso se quiser.</div>';
+  const notice = '<div class="empty" style="padding:16px 4px;">O chat de IA usava um recurso exclusivo do ambiente do Claude e nao funciona neste site hospedado. '
+    + 'Pra reativar, voce precisaria da sua propria chave de API da Anthropic e um pequeno backend (por seguranca, uma chave nao pode ficar exposta direto no HTML).</div>';
   return '<div class="ai-overlay" onclick="if(event.target===this) toggleAI()"><div class="ai-panel">'
-    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"><h3 style="margin:0;font-size:15px;">💬 Tira-dúvidas</h3><div class="btn-back" onclick="toggleAI()">✕</div></div>'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"><h3 style="margin:0;font-size:15px;">💬 Tira-duvidas</h3><div class="btn-back" onclick="toggleAI()">✕</div></div>'
     + notice + '</div></div>';
 }
-
 function activeWorkout(){ return state.workouts.find(function(w){ return w.id === state.activeWorkoutId; }) || null; }
 function musclesDoneInSession(){
   if(!state.session) return new Set();
@@ -787,8 +787,10 @@ function beep(freq, dur){
   }catch(e){ }
 }
 function timerTick(){
-  state.timer.remaining -= 1;
-  if(state.timer.remaining <= 0){
+  if(!state.timer.running) return;
+  const remaining = Math.max(0, Math.round((state.timer.endTime - Date.now()) / 1000));
+  state.timer.remaining = remaining;
+  if(remaining <= 0){
     state.timer.remaining = 0; state.timer.running = false; state.timer.done = true;
     clearInterval(state.timer.tickHandle);
     beep(880,150); setTimeout(function(){beep(880,150);},220); setTimeout(function(){beep(1100,220);},440);
@@ -798,27 +800,46 @@ function timerTick(){
 }
 function startTimer(seconds){
   stopTimer();
-  state.timer.total = seconds; state.timer.remaining = seconds; state.timer.running = true; state.timer.done = false;
+  state.timer.total = seconds;
+  state.timer.remaining = seconds;
+  state.timer.endTime = Date.now() + seconds * 1000;
+  state.timer.running = true;
+  state.timer.done = false;
   state.timer.tickHandle = setInterval(timerTick, 1000);
   render();
 }
 function adjustTimer(delta){
-  if(!state.timer.total && !state.timer.remaining) return;
-  state.timer.remaining = Math.max(0, state.timer.remaining + delta);
-  state.timer.total = Math.max(state.timer.total, state.timer.remaining);
+  if(!state.timer.total && !state.timer.remaining && !state.timer.endTime) return;
+  state.timer.endTime = (state.timer.endTime || Date.now()) + delta * 1000;
+  const remaining = Math.max(0, Math.round((state.timer.endTime - Date.now()) / 1000));
+  state.timer.remaining = remaining;
+  state.timer.total = Math.max(state.timer.total, remaining);
   renderTimerOnly();
 }
 function togglePauseTimer(){
   if(state.timer.done) return;
-  if(state.timer.running){ state.timer.running = false; clearInterval(state.timer.tickHandle); }
-  else if(state.timer.remaining > 0){ state.timer.running = true; state.timer.tickHandle = setInterval(timerTick, 1000); }
+  if(state.timer.running){
+    state.timer.remaining = Math.max(0, Math.round((state.timer.endTime - Date.now()) / 1000));
+    state.timer.running = false;
+    clearInterval(state.timer.tickHandle);
+  } else if(state.timer.remaining > 0){
+    state.timer.endTime = Date.now() + state.timer.remaining * 1000;
+    state.timer.running = true;
+    state.timer.tickHandle = setInterval(timerTick, 1000);
+  }
   renderTimerOnly();
 }
 function stopTimer(){
   if(state.timer.tickHandle) clearInterval(state.timer.tickHandle);
-  state.timer = { running:false, remaining:0, total:0, tickHandle:null, done:false };
+  state.timer = { running:false, remaining:0, total:0, endTime:null, tickHandle:null, done:false };
 }
 function dismissTimer(){ stopTimer(); render(); }
+
+document.addEventListener('visibilitychange', function(){
+  if(document.visibilityState === 'visible' && state.timer.running){
+    timerTick();
+  }
+});
 
 function findPrevSession(exId, beforeIdx){
   for(let i = beforeIdx+1; i < state.sessions.length; i++){
@@ -962,6 +983,100 @@ function exercicioViewHtml(){
     + '<div class="tab-content">'+tabContentHtml+'</div>' + setsHtml + '<div style="height:50px"></div>';
 }
 
+// ---------- Dashboard de evolução ----------
+function buildExerciseProgressMap(){
+  const map = {};
+  const chronological = state.sessions.slice().reverse(); // mais antigo -> mais recente
+  chronological.forEach(function(s){
+    Object.keys(s.entries).forEach(function(exId){
+      const entry = s.entries[exId];
+      const doneSets = entry.sets.filter(function(st){ return st.done; });
+      if(doneSets.length === 0) return;
+      let name = null;
+      state.workouts.forEach(function(w){
+        w.exercises.forEach(function(e){ if(e.id === exId) name = e.name; });
+      });
+      if(!name) return;
+      const weights = doneSets.map(function(st){ return st.weight; });
+      const maxW = Math.max.apply(null, weights);
+      const totalReps = doneSets.reduce(function(a,st){ return a + st.reps; }, 0);
+      const totalVolume = doneSets.reduce(function(a,st){ return a + st.weight*st.reps; }, 0);
+      if(!map[name]) map[name] = [];
+      map[name].push({date: s.startedAt, maxWeight: maxW, totalReps: totalReps, totalVolume: totalVolume});
+    });
+  });
+  return map;
+}
+function svgLineChart(points, color){
+  const w = 300, h = 110, pad = 14;
+  if(points.length === 0) return '<div class="empty" style="padding:16px 0;">Sem dados ainda.</div>';
+  if(points.length === 1){
+    return '<div style="text-align:center;padding:20px 0;font-family:\'Oswald\';font-size:22px;color:'+color+';">'+points[0]+'</div>'
+      + '<div style="text-align:center;color:var(--text-dim);font-size:11px;">Só 1 sessão registrada até agora</div>';
+  }
+  const minV = Math.min.apply(null, points), maxV = Math.max.apply(null, points);
+  const range = (maxV - minV) || 1;
+  const stepX = (w - pad*2) / (points.length - 1);
+  const coords = points.map(function(v,i){
+    const x = pad + i*stepX;
+    const y = h - pad - ((v - minV) / range) * (h - pad*2);
+    return {x:x, y:y};
+  });
+  const pathD = coords.map(function(c,i){ return (i===0?'M':'L')+c.x.toFixed(1)+','+c.y.toFixed(1); }).join(' ');
+  const areaD = pathD + ' L'+coords[coords.length-1].x.toFixed(1)+','+(h-pad)+' L'+coords[0].x.toFixed(1)+','+(h-pad)+' Z';
+  const dots = coords.map(function(c,i){
+    const isLast = i === coords.length-1;
+    return '<circle cx="'+c.x.toFixed(1)+'" cy="'+c.y.toFixed(1)+'" r="'+(isLast?4.5:3)+'" fill="'+color+'"/>';
+  }).join('');
+  const lastVal = points[points.length-1];
+  const lastCoord = coords[coords.length-1];
+  const label = '<text x="'+Math.min(lastCoord.x, w-30)+'" y="'+Math.max(lastCoord.y-10,12)+'" fill="'+color+'" font-size="13" font-weight="700" text-anchor="middle">'+lastVal+'</text>';
+  return '<svg viewBox="0 0 '+w+' '+h+'" width="100%" height="'+h+'" preserveAspectRatio="none" style="overflow:visible;display:block;">'
+    + '<path d="'+areaD+'" fill="'+color+'" opacity="0.08"/>'
+    + '<path d="'+pathD+'" fill="none" stroke="'+color+'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>'
+    + dots + label + '</svg>';
+}
+function statCardHtml(value, label){
+  return '<div style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 10px;text-align:center;">'
+    + '<div style="font-family:\'Oswald\';font-size:18px;">'+value+'</div>'
+    + '<div style="font-size:9.5px;color:var(--text-dim);text-transform:uppercase;font-weight:700;margin-top:2px;letter-spacing:0.03em;">'+label+'</div></div>';
+}
+function dashboardViewHtml(){
+  const map = buildExerciseProgressMap();
+  const names = Object.keys(map);
+  if(names.length === 0){
+    return '<div class="empty">Ainda sem dados suficientes.<br>Finalize pelo menos um treino marcando séries como feitas pra ver sua evolução aqui.</div>';
+  }
+  if(!state.dashboardExercise || !map[state.dashboardExercise]) state.dashboardExercise = names[0];
+  const series = map[state.dashboardExercise];
+  const weightPoints = series.map(function(s){ return s.maxWeight; });
+  const volumePoints = series.map(function(s){ return Math.round(s.totalVolume); });
+  const repsPoints = series.map(function(s){ return s.totalReps; });
+  const first = series[0], last = series[series.length-1];
+  const deltaPct = first.maxWeight > 0 ? Math.round(((last.maxWeight-first.maxWeight)/first.maxWeight)*100) : 0;
+
+  const totalSessions = state.sessions.length;
+  const totalVolumeAll = state.sessions.reduce(function(sum,s){
+    return sum + Object.values(s.entries).reduce(function(a,e){
+      return a + e.sets.filter(function(st){return st.done;}).reduce(function(b,st){return b+st.weight*st.reps;},0);
+    },0);
+  },0);
+
+  const selector = '<select onchange="state.dashboardExercise=this.value;render()" style="width:100%;background:var(--surface-2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:11px;font-size:13px;margin-bottom:14px;">'
+    + names.map(function(n){ return '<option value="'+n+'" '+(n===state.dashboardExercise?'selected':'')+'>'+n+'</option>'; }).join('') + '</select>';
+
+  const statCards = '<div style="display:flex;gap:8px;margin-bottom:16px;">'
+    + statCardHtml(totalSessions, 'Treinos feitos')
+    + statCardHtml(Math.round(totalVolumeAll)+'kg', 'Volume total')
+    + statCardHtml((deltaPct>=0?'+':'')+deltaPct+'%', 'Evolução de carga')
+    + '</div>';
+
+  return statCards + selector
+    + '<div class="tab-content"><div class="section-label" style="margin:0 0 6px;">Carga máxima por sessão (kg)</div>' + svgLineChart(weightPoints, '#D4FF3F') + '</div>'
+    + '<div class="tab-content"><div class="section-label" style="margin:0 0 6px;">Volume por sessão (kg × reps)</div>' + svgLineChart(volumePoints, '#5AA9E8') + '</div>'
+    + '<div class="tab-content"><div class="section-label" style="margin:0 0 6px;">Repetições totais por sessão</div>' + svgLineChart(repsPoints, '#E8B65A') + '</div>';
+}
+
 function historyViewHtml(){
   if(state.sessions.length === 0) return '<div class="empty">Nenhum treino registrado ainda.<br>Finalize um treino para ver o histórico aqui.</div>';
   return state.sessions.map(function(s, idx){
@@ -1014,6 +1129,8 @@ function render(){
 
     content = state.view==='treino'
       ? '<div class="chip-row">'+chips+'</div>' + addWorkoutForm + treinoViewHtml()
+      : state.view==='progresso'
+      ? '<div class="section-label">Sua evolução</div>' + dashboardViewHtml()
       : '<div class="section-label">Sessões anteriores</div>'
         + '<div style="display:flex;gap:8px;margin-bottom:14px;">'
         + '<button class="btn btn-ghost btn-sm" style="flex:1;" onclick="exportBackup()">📋 Copiar backup</button>'
@@ -1025,10 +1142,12 @@ function render(){
   const html = (state.view !== 'exercicio' ?
     '<div class="topbar"><h1>Treino<span>Log</span></h1><div style="display:flex;align-items:center;gap:8px;">'
     + '<button class="btn btn-ghost btn-sm" onclick="switchProfile()" title="Trocar perfil">👤 '+state.profile+'</button>'
-    + '<div class="view-toggle">'
+    + '</div></div>'
+    + '<div class="view-toggle" style="margin-bottom:14px;">'
     + '<button class="'+(state.view==='treino'?'active':'')+'" onclick="state.view=\'treino\';render()">Treino</button>'
+    + '<button class="'+(state.view==='progresso'?'active':'')+'" onclick="state.view=\'progresso\';render()">Progresso</button>'
     + '<button class="'+(state.view==='historico'?'active':'')+'" onclick="state.view=\'historico\';render()">Histórico</button>'
-    + '</div></div></div>' : '')
+    + '</div>' : '')
     + '<div id="save-warning-slot">'+saveWarningHtml()+'</div>'
     + content + '<div id="timer-slot">'+timerBarHtml()+'</div>'
     + aiFabHtml() + aiPanelHtml();

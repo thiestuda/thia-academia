@@ -329,9 +329,59 @@ function pumpWorkoutTemplate(){
       execution:'Em pé, halteres ao lado do corpo, cotovelos fixos junto ao tronco. Flexione os cotovelos elevando os halteres até a altura do ombro, sem balançar o corpo, e desça controlado.'},
     {id:uid(), name:'Tríceps Testa com Barra W', muscle:'Tríceps', sets:3, reps:15, weight:0, rest:30, unit:'reps', equipment:'Barra W, Banco', video:'',
       execution:'Deitado no banco, segure a barra W acima do peito com pegada fechada. Flexione os cotovelos descendo a barra em direção à testa, mantendo os braços fixos, e estenda de volta sem travar com força total.'},
-    {id:uid(), name:'Abdominal na Polia em Pé', muscle:'Abdômen', sets:3, reps:15, weight:0, rest:30, unit:'reps', equipment:'Polia', video:'',
-      execution:'Fique de frente para a polia alta, segure a corda atrás da nuca, quadril fixo. Flexione o tronco para baixo contraindo o abdômen, sem puxar com os braços ou dobrar os joelhos.'}
+    {id:uid(), name:'Abdominal Normal Sem Peso', muscle:'Abdômen', sets:3, reps:20, weight:0, rest:30, unit:'reps', equipment:'Colchonete', video:'',
+      execution:'Deitado com os joelhos flexionados e pés apoiados no chão, mãos atrás da nuca ou cruzadas no peito. Flexione o tronco elevando a parte superior das costas do chão, contraindo o abdômen, sem puxar o pescoço com as mãos. Desça controlado sem relaxar totalmente.'},
+    {id:uid(), name:'Prancha', muscle:'Abdômen', sets:3, reps:45, weight:0, rest:30, unit:'seg', equipment:'Peso Corporal', video:'',
+      execution:'Apoie antebraços e pontas dos pés no chão, corpo reto da cabeça aos calcanhares, abdômen e glúteo contraídos. Evite deixar o quadril cair ou subir demais, mantendo a coluna neutra.'},
+    {id:uid(), name:'Prancha Lateral', muscle:'Abdômen', sets:3, reps:30, weight:0, rest:30, unit:'seg', equipment:'Peso Corporal', video:'',
+      execution:'Apoie um antebraço e a lateral do pé no chão, corpo alinhado da cabeça aos pés. Eleve o quadril mantendo a linha reta, sem deixar cair, contraindo o oblíquo.'},
+    {id:uid(), name:'Abdominal no Solo com Elevação de Pernas', muscle:'Abdômen', sets:3, reps:20, weight:0, rest:30, unit:'reps', equipment:'Colchonete', video:'',
+      execution:'Deitado, mãos ao lado do corpo ou sob o quadril, pernas estendidas. Eleve as pernas contraindo o abdômen inferior, sem balançar, e desça controlado sem tocar totalmente o chão.'}
   ]};
+}
+
+function forcaAbsTemplate(){
+  return [
+    {id:uid(), name:'Abdominal na Polia em Pé', muscle:'Abdômen', sets:4, reps:12, weight:0, rest:30, unit:'reps', equipment:'Polia', video:'',
+      execution:'Fique de frente para a polia alta, segure a corda atrás da nuca, quadril fixo. Flexione o tronco para baixo contraindo o abdômen, sem puxar com os braços ou dobrar os joelhos.'},
+    {id:uid(), name:'Abdominal Infra na Paralela', muscle:'Abdômen', sets:4, reps:12, weight:0, rest:30, unit:'reps', equipment:'Paralela', video:'',
+      execution:'Apoiado na paralela com os antebraços, eleve os joelhos em direção ao peito controlando o movimento, evitando balançar o corpo. Desça controlado sem soltar o abdômen contraído.'},
+    {id:uid(), name:'Abdominal Russo', muscle:'Abdômen', sets:4, reps:15, weight:0, rest:30, unit:'reps', equipment:'Colchonete', video:'',
+      execution:'Sentado, tronco levemente inclinado para trás, pés no chão ou elevados. Gire o tronco de um lado para o outro tocando o chão (ou peso) ao lado do quadril, mantendo o abdômen contraído.'}
+  ];
+}
+function resistenciaAbsTemplate(){
+  return [
+    {id:uid(), name:'Abdominal Normal Sem Peso', muscle:'Abdômen', sets:3, reps:20, weight:0, rest:30, unit:'reps', equipment:'Colchonete', video:'',
+      execution:'Deitado com os joelhos flexionados e pés apoiados no chão, mãos atrás da nuca ou cruzadas no peito. Flexione o tronco elevando a parte superior das costas do chão, contraindo o abdômen, sem puxar o pescoço com as mãos. Desça controlado sem relaxar totalmente.'},
+    {id:uid(), name:'Prancha', muscle:'Abdômen', sets:3, reps:45, weight:0, rest:30, unit:'seg', equipment:'Peso Corporal', video:'',
+      execution:'Apoie antebraços e pontas dos pés no chão, corpo reto da cabeça aos calcanhares, abdômen e glúteo contraídos. Evite deixar o quadril cair ou subir demais, mantendo a coluna neutra.'},
+    {id:uid(), name:'Prancha Lateral', muscle:'Abdômen', sets:3, reps:30, weight:0, rest:30, unit:'seg', equipment:'Peso Corporal', video:'',
+      execution:'Apoie um antebraço e a lateral do pé no chão, corpo alinhado da cabeça aos pés. Eleve o quadril mantendo a linha reta, sem deixar cair, contraindo o oblíquo.'},
+    {id:uid(), name:'Abdominal no Solo com Elevação de Pernas', muscle:'Abdômen', sets:3, reps:20, weight:0, rest:30, unit:'reps', equipment:'Colchonete', video:'',
+      execution:'Deitado, mãos ao lado do corpo ou sob o quadril, pernas estendidas. Eleve as pernas contraindo o abdômen inferior, sem balançar, e desça controlado sem tocar totalmente o chão.'}
+  ];
+}
+const FORCA_ABS_DAYS = ['Day 1 · Superior','Day 3 · Empurrar','Day 5 · Pernas'];
+const RESIST_ABS_DAYS = ['Day 2 · Inferior','Day 4 · Puxar','Day 6 · Pump'];
+async function migrateAbsExercises(){
+  const flagKey = scopedKey('abs-migration-v2');
+  try{
+    const flag = await LocalStore.get(flagKey);
+    if(flag && flag.value === 'done') return;
+  }catch(e){ }
+  let changed = false;
+  state.workouts.forEach(function(w){
+    let template = null;
+    if(FORCA_ABS_DAYS.indexOf(w.name) !== -1) template = forcaAbsTemplate();
+    else if(RESIST_ABS_DAYS.indexOf(w.name) !== -1) template = resistenciaAbsTemplate();
+    if(!template) return;
+    const nonAbs = w.exercises.filter(function(ex){ return ex.muscle !== 'Abdômen'; });
+    w.exercises = nonAbs.concat(template);
+    changed = true;
+  });
+  if(changed) await saveData();
+  await storageSet(flagKey, 'done');
 }
 
 function buildExecutionLookup(){
@@ -451,6 +501,8 @@ async function loadData(){
   if(state.workouts.length > 0 && !state.workouts.some(function(w){ return w.name === 'Day 6 · Pump'; })){
     state.workouts.push(pumpWorkoutTemplate());
   }
+
+  await migrateAbsExercises();
 
   await saveData();
 

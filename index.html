@@ -34,6 +34,18 @@
   .wchip.active{background:var(--text);color:var(--bg);border-color:var(--text);}
   .wchip.add{color:var(--accent);border-color:var(--accent-dim);}
 
+  .wgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:14px;}
+  .wchip2{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:9px 6px;text-align:center;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:44px;}
+  .wchip2-name{color:var(--text-dim);font-weight:700;font-size:11.5px;line-height:1.25;word-break:break-word;}
+  .wchip2.active{background:var(--text);border-color:var(--text);}
+  .wchip2.active .wchip2-name{color:var(--bg);}
+  .wchip2.in-session{border-color:var(--done);}
+  .wchip2.add{color:var(--accent);border-color:var(--accent-dim);border-style:dashed;}
+  .wchip2.add .wchip2-name{color:var(--accent);}
+  .wchip2-reorder{display:flex;gap:4px;}
+  .wchip2-reorder button{background:var(--surface-2);border:1px solid var(--border);color:var(--text);border-radius:6px;width:22px;height:20px;font-size:10px;cursor:pointer;padding:0;line-height:1;}
+  .wchip2-reorder button:disabled{opacity:0.25;cursor:default;}
+
   .muscle-strip{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:18px;}
   .mtag{font-size:10.5px;font-weight:700;padding:5px 9px;border-radius:7px;text-transform:uppercase;letter-spacing:0.02em;opacity:0.35;border:1px solid transparent;}
   .mtag.lit{opacity:1;}
@@ -191,15 +203,15 @@ function defaultWorkouts(){
         execution:'Apoie os braços no banco scott, cotovelos fixos no apoio. Flexione o cotovelo trazendo a barra até perto do ombro, sem tirar o braço do apoio, e desça controlado até quase estender.'},
       {id:uid(), name:'Tríceps Polia Corda', muscle:'Tríceps', sets:4, reps:10, weight:22, rest:60, unit:'reps', equipment:'Polia, Corda', video:'',
         execution:'Em pé, cotovelos colados ao corpo, segure a corda com pegada neutra. Estenda os braços para baixo, separando as pontas da corda no final, e retorne controlado sem afastar os cotovelos do tronco.'},
-      {id:uid(), name:'Abdominal na Polia em Pé', muscle:'Abdômen', sets:4, reps:10, weight:0, rest:30, unit:'reps', equipment:'Polia', video:'',
+      {id:uid(), name:'Abdominal na Polia em Pé', muscle:'Abdômen', sets:4, reps:12, weight:0, rest:30, unit:'reps', equipment:'Polia', video:'',
         execution:'Fique de frente para a polia alta, segure a corda atrás da nuca, quadril fixo. Flexione o tronco para baixo contraindo o abdômen, sem puxar com os braços ou dobrar os joelhos.'},
-      {id:uid(), name:'Abdominal Infra na Paralela', muscle:'Abdômen', sets:4, reps:10, weight:0, rest:30, unit:'reps', equipment:'Paralela', video:'',
+      {id:uid(), name:'Abdominal Infra na Paralela', muscle:'Abdômen', sets:4, reps:12, weight:0, rest:30, unit:'reps', equipment:'Paralela', video:'',
         execution:'Apoiado na paralela com os antebraços, eleve os joelhos em direção ao peito controlando o movimento, evitando balançar o corpo. Desça controlado sem soltar o abdômen contraído.'},
-      {id:uid(), name:'Prancha', muscle:'Abdômen', sets:4, reps:30, weight:0, rest:30, unit:'seg', equipment:'Peso Corporal', video:'',
-        execution:'Apoie antebraços e pontas dos pés no chão, corpo reto da cabeça aos calcanhares, abdômen e glúteo contraídos. Evite deixar o quadril cair ou subir demais, mantendo a coluna neutra.'}
+      {id:uid(), name:'Abdominal Russo', muscle:'Abdômen', sets:4, reps:15, weight:0, rest:30, unit:'reps', equipment:'Colchonete', video:'',
+        execution:'Sentado, tronco levemente inclinado para trás, pés no chão ou elevados. Gire o tronco de um lado para o outro tocando o chão (ou peso) ao lado do quadril, mantendo o abdômen contraído.'}
     ]},
     { id: uid(), name:'Day 2 · Inferior', exercises: [
-      {id:uid(), name:'Leg Press 45', muscle:'Perna', sets:4, reps:10, weight:0, rest:90, unit:'reps', equipment:'Leg Press', video:'',
+      {id:uid(), name:'Leg Press 45', muscle:'Perna', sets:4, reps:10, weight:0, rest:90, unit:'reps', equipment:'Leg Press', note:'+1 série de aquecimento antes', video:'',
         execution:'Pés na largura dos ombros na plataforma, levemente à frente. Desça controlado até cerca de 90 graus no joelho, sem tirar a lombar do encosto, e empurre sem travar os joelhos no topo.'},
       {id:uid(), name:'Levantamento Terra Parcial no Smith', muscle:'Perna', sets:4, reps:10, weight:0, rest:120, unit:'reps', equipment:'Máquina Smith', video:'',
         execution:'Barra na altura dos joelhos ou logo abaixo, pegada pronada, costas retas. Empurre o quadril à frente estendendo pernas e tronco simultaneamente, sem arredondar a lombar.'},
@@ -215,13 +227,17 @@ function defaultWorkouts(){
         execution:'Sente-se com as pernas apoiadas nos suportes laterais abertos. Feche as pernas contraindo a parte interna da coxa, controlando a volta até a abertura inicial.'},
       {id:uid(), name:'Panturrilha Leg Press 180', muscle:'Perna', sets:4, reps:10, weight:0, rest:45, unit:'reps', equipment:'Leg Press 180', video:'',
         execution:'Apoie a ponta dos pés na plataforma, pernas estendidas. Empurre com a ponta dos pés estendendo o tornozelo ao máximo, e desça alongando bem a panturrilha antes de repetir.'},
-      {id:uid(), name:'Abdominal na Máquina Sentado', muscle:'Abdômen', sets:4, reps:10, weight:0, rest:30, unit:'reps', equipment:'Máquina', video:'',
-        execution:'Ajuste o apoio no peito ou ombros, quadril fixo no assento. Flexione o tronco para frente contraindo o abdômen, sem puxar com os braços, e retorne controlado.'},
-      {id:uid(), name:'Abdominal no Solo com Elevação de Pernas', muscle:'Abdômen', sets:4, reps:10, weight:0, rest:30, unit:'reps', equipment:'Colchonete', video:'',
+      {id:uid(), name:'Abdominal Normal Sem Peso', muscle:'Abdômen', sets:3, reps:20, weight:0, rest:30, unit:'reps', equipment:'Colchonete', video:'',
+        execution:'Deitado com os joelhos flexionados e pés apoiados no chão, mãos atrás da nuca ou cruzadas no peito. Flexione o tronco elevando a parte superior das costas do chão, contraindo o abdômen, sem puxar o pescoço com as mãos. Desça controlado sem relaxar totalmente.'},
+      {id:uid(), name:'Prancha', muscle:'Abdômen', sets:3, reps:45, weight:0, rest:30, unit:'seg', equipment:'Peso Corporal', video:'',
+        execution:'Apoie antebraços e pontas dos pés no chão, corpo reto da cabeça aos calcanhares, abdômen e glúteo contraídos. Evite deixar o quadril cair ou subir demais, mantendo a coluna neutra.'},
+      {id:uid(), name:'Prancha Lateral', muscle:'Abdômen', sets:3, reps:30, weight:0, rest:30, unit:'seg', equipment:'Peso Corporal', video:'',
+        execution:'Apoie um antebraço e a lateral do pé no chão, corpo alinhado da cabeça aos pés. Eleve o quadril mantendo a linha reta, sem deixar cair, contraindo o oblíquo.'},
+      {id:uid(), name:'Abdominal no Solo com Elevação de Pernas', muscle:'Abdômen', sets:3, reps:20, weight:0, rest:30, unit:'reps', equipment:'Colchonete', video:'',
         execution:'Deitado, mãos ao lado do corpo ou sob o quadril, pernas estendidas. Eleve as pernas contraindo o abdômen inferior, sem balançar, e desça controlado sem tocar totalmente o chão.'}
     ]},
     { id: uid(), name:'Day 3 · Empurrar', exercises: [
-      {id:uid(), name:'Supino Inclinado com Barra', muscle:'Peito', sets:4, reps:10, weight:42, rest:90, unit:'reps', equipment:'Barra, Banco Inclinado', video:'',
+      {id:uid(), name:'Supino Inclinado com Barra', muscle:'Peito', sets:4, reps:10, weight:42, rest:90, unit:'reps', equipment:'Barra, Banco Inclinado', note:'+1 série de aquecimento antes', video:'',
         execution:'Banco inclinado 30 a 45 graus, pegada um pouco mais aberta que os ombros. Desça a barra até a parte superior do peito, cotovelos a cerca de 45 graus, e empurre para cima sem travar.'},
       {id:uid(), name:'Supino Reto Máquina', muscle:'Peito', sets:4, reps:10, weight:38, rest:90, unit:'reps', equipment:'Máquina', video:'',
         execution:'Ajuste o banco para os punhos ficarem na altura do peito. Empurre as alças à frente sem travar os cotovelos, controlando a volta até sentir alongar o peito.'},
@@ -237,13 +253,15 @@ function defaultWorkouts(){
         execution:'Polia baixa ao lado do corpo, leve inclinação para o lado oposto. Eleve o braço lateralmente até a altura do ombro, controlando a descida sem deixar a polia puxar de volta rápido.'},
       {id:uid(), name:'Tríceps na Polia com Barra Reta', muscle:'Tríceps', sets:4, reps:10, weight:22, rest:60, unit:'reps', equipment:'Polia, Barra Reta', video:'',
         execution:'Em pé, cotovelos colados ao corpo, pegada pronada na barra. Estenda os braços para baixo sem mover os cotovelos, e retorne controlado.'},
-      {id:uid(), name:'Abdominal Russo', muscle:'Abdômen', sets:4, reps:10, weight:0, rest:30, unit:'reps', equipment:'Colchonete', video:'',
-        execution:'Sentado, tronco levemente inclinado para trás, pés no chão ou elevados. Gire o tronco de um lado para o outro tocando o chão (ou peso) ao lado do quadril, mantendo o abdômen contraído.'},
-      {id:uid(), name:'Prancha Lateral', muscle:'Abdômen', sets:4, reps:10, weight:0, rest:30, unit:'reps', equipment:'Peso Corporal', video:'',
-        execution:'Apoie um antebraço e a lateral do pé no chão, corpo alinhado da cabeça aos pés. Eleve o quadril mantendo a linha reta, sem deixar cair, contraindo o oblíquo.'}
+      {id:uid(), name:'Abdominal na Polia em Pé', muscle:'Abdômen', sets:4, reps:12, weight:0, rest:30, unit:'reps', equipment:'Polia', video:'',
+        execution:'Fique de frente para a polia alta, segure a corda atrás da nuca, quadril fixo. Flexione o tronco para baixo contraindo o abdômen, sem puxar com os braços ou dobrar os joelhos.'},
+      {id:uid(), name:'Abdominal Infra na Paralela', muscle:'Abdômen', sets:4, reps:12, weight:0, rest:30, unit:'reps', equipment:'Paralela', video:'',
+        execution:'Apoiado na paralela com os antebraços, eleve os joelhos em direção ao peito controlando o movimento, evitando balançar o corpo. Desça controlado sem soltar o abdômen contraído.'},
+      {id:uid(), name:'Abdominal Russo', muscle:'Abdômen', sets:4, reps:15, weight:0, rest:30, unit:'reps', equipment:'Colchonete', video:'',
+        execution:'Sentado, tronco levemente inclinado para trás, pés no chão ou elevados. Gire o tronco de um lado para o outro tocando o chão (ou peso) ao lado do quadril, mantendo o abdômen contraído.'}
     ]},
     { id: uid(), name:'Day 4 · Puxar', exercises: [
-      {id:uid(), name:'Remada Curvada', muscle:'Costas', sets:4, reps:10, weight:0, rest:90, unit:'reps', equipment:'Barra', video:'',
+      {id:uid(), name:'Remada Curvada', muscle:'Costas', sets:4, reps:10, weight:0, rest:90, unit:'reps', equipment:'Barra', note:'+1 série de aquecimento antes', video:'',
         execution:'Pés na largura do quadril, incline o tronco à frente mantendo a coluna reta, barra próxima às canelas. Puxe a barra em direção ao abdômen, cotovelos próximos ao corpo, contraindo as costas no topo.'},
       {id:uid(), name:'Remada Pegada Aberta Máquina', muscle:'Costas', sets:4, reps:10, weight:0, rest:75, unit:'reps', equipment:'Máquina', video:'',
         execution:'Peito apoiado no suporte, pegada mais aberta que os ombros. Puxe as alças em direção ao corpo, levando os cotovelos para trás e abrindo o peito, contraindo as costas.'},
@@ -262,10 +280,18 @@ function defaultWorkouts(){
       {id:uid(), name:'Encolhimento no Smith', muscle:'Trapézio', sets:4, reps:10, weight:0, rest:45, unit:'reps', equipment:'Smith', video:'',
         execution:'Em pé, segure a barra na altura do quadril, braços estendidos. Eleve os ombros em direção às orelhas sem flexionar os cotovelos, segure um instante e desça controlado.'},
       {id:uid(), name:'Extensão de Punho com Barra Reta', muscle:'Antebraço', sets:4, reps:10, weight:0, rest:30, unit:'reps', equipment:'Barra Reta', video:'',
-        execution:'Sente-se com o antebraço apoiado na coxa ou banco, palma voltada para cima, segurando a barra. Estenda o punho para cima e para baixo controlado, mantendo o antebraço fixo.'}
+        execution:'Sente-se com o antebraço apoiado na coxa ou banco, palma voltada para cima, segurando a barra. Estenda o punho para cima e para baixo controlado, mantendo o antebraço fixo.'},
+      {id:uid(), name:'Abdominal Normal Sem Peso', muscle:'Abdômen', sets:3, reps:20, weight:0, rest:30, unit:'reps', equipment:'Colchonete', video:'',
+        execution:'Deitado com os joelhos flexionados e pés apoiados no chão, mãos atrás da nuca ou cruzadas no peito. Flexione o tronco elevando a parte superior das costas do chão, contraindo o abdômen, sem puxar o pescoço com as mãos. Desça controlado sem relaxar totalmente.'},
+      {id:uid(), name:'Prancha', muscle:'Abdômen', sets:3, reps:45, weight:0, rest:30, unit:'seg', equipment:'Peso Corporal', video:'',
+        execution:'Apoie antebraços e pontas dos pés no chão, corpo reto da cabeça aos calcanhares, abdômen e glúteo contraídos. Evite deixar o quadril cair ou subir demais, mantendo a coluna neutra.'},
+      {id:uid(), name:'Prancha Lateral', muscle:'Abdômen', sets:3, reps:30, weight:0, rest:30, unit:'seg', equipment:'Peso Corporal', video:'',
+        execution:'Apoie um antebraço e a lateral do pé no chão, corpo alinhado da cabeça aos pés. Eleve o quadril mantendo a linha reta, sem deixar cair, contraindo o oblíquo.'},
+      {id:uid(), name:'Abdominal no Solo com Elevação de Pernas', muscle:'Abdômen', sets:3, reps:20, weight:0, rest:30, unit:'reps', equipment:'Colchonete', video:'',
+        execution:'Deitado, mãos ao lado do corpo ou sob o quadril, pernas estendidas. Eleve as pernas contraindo o abdômen inferior, sem balançar, e desça controlado sem tocar totalmente o chão.'}
     ]},
     { id: uid(), name:'Day 5 · Pernas', exercises: [
-      {id:uid(), name:'Elevação Pélvica com Barra', muscle:'Glúteo', sets:4, reps:10, weight:0, rest:120, unit:'reps', equipment:'Barra, Banco', video:'',
+      {id:uid(), name:'Elevação Pélvica com Barra', muscle:'Glúteo', sets:4, reps:10, weight:0, rest:120, unit:'reps', equipment:'Barra, Banco', note:'+1 série de aquecimento antes', video:'',
         execution:'Costas superiores apoiadas no banco, barra sobre o quadril (use almofada), pés firmes no chão. Eleve o quadril até formar uma linha reta dos ombros aos joelhos, contraindo forte o glúteo no topo.'},
       {id:uid(), name:'Levantamento Terra com Halteres', muscle:'Perna', sets:4, reps:10, weight:0, rest:90, unit:'reps', equipment:'Halteres', video:'',
         execution:'Halteres à frente das coxas, pés na largura do quadril. Incline o tronco levando o quadril para trás, joelhos levemente flexionados, coluna reta, e volte estendendo o quadril.'},
@@ -281,19 +307,19 @@ function defaultWorkouts(){
         execution:'Ponta de um pé na plataforma ou step, barra apoiada nos ombros. Empurre com a ponta do pé estendendo o tornozelo ao máximo, controlando a descida com alongamento completo.'},
       {id:uid(), name:'Abdução de Quadril na Polia Baixa', muscle:'Glúteo', sets:4, reps:10, weight:0, rest:45, unit:'reps', equipment:'Polia', video:'',
         execution:'Tornozelo preso na polia baixa, apoie-se em um suporte lateral. Afaste a perna para o lado contraindo o glúteo médio, sem inclinar o tronco, e retorne controlado.'},
-      {id:uid(), name:'Prancha Lateral com Abdução de Quadril (Joelho Flexionado)', muscle:'Abdômen', sets:4, reps:10, weight:0, rest:30, unit:'reps', equipment:'Peso Corporal', video:'',
-        execution:'Apoie antebraço e joelho no chão (perna de baixo flexionada), corpo alinhado. Eleve a perna de cima lateralmente contraindo o glúteo médio, sem deixar o quadril cair, e desça controlado.'},
-      {id:uid(), name:'Abdominal na Polia em Pé', muscle:'Abdômen', sets:4, reps:10, weight:0, rest:30, unit:'reps', equipment:'Polia', video:'',
+      {id:uid(), name:'Abdominal na Polia em Pé', muscle:'Abdômen', sets:4, reps:12, weight:0, rest:30, unit:'reps', equipment:'Polia', video:'',
         execution:'Fique de frente para a polia alta, segure a corda atrás da nuca, quadril fixo. Flexione o tronco para baixo contraindo o abdômen, sem puxar com os braços ou dobrar os joelhos.'},
-      {id:uid(), name:'Abdominal Infra na Paralela', muscle:'Abdômen', sets:4, reps:10, weight:0, rest:30, unit:'reps', equipment:'Paralela', video:'',
-        execution:'Apoiado na paralela com os antebraços, eleve os joelhos em direção ao peito controlando o movimento, evitando balançar o corpo. Desça controlado sem soltar o abdômen contraído.'}
+      {id:uid(), name:'Abdominal Infra na Paralela', muscle:'Abdômen', sets:4, reps:12, weight:0, rest:30, unit:'reps', equipment:'Paralela', video:'',
+        execution:'Apoiado na paralela com os antebraços, eleve os joelhos em direção ao peito controlando o movimento, evitando balançar o corpo. Desça controlado sem soltar o abdômen contraído.'},
+      {id:uid(), name:'Abdominal Russo', muscle:'Abdômen', sets:4, reps:15, weight:0, rest:30, unit:'reps', equipment:'Colchonete', video:'',
+        execution:'Sentado, tronco levemente inclinado para trás, pés no chão ou elevados. Gire o tronco de um lado para o outro tocando o chão (ou peso) ao lado do quadril, mantendo o abdômen contraído.'}
     ]}
   ];
 }
 
 function pumpWorkoutTemplate(){
   return { id: uid(), name:'Day 6 · Pump', note:'Bônus curto — pense nele como 20-25min de peso + 30min de esteira', exercises: [
-    {id:uid(), name:'Supino Reto com Halteres', muscle:'Peito', sets:3, reps:15, weight:0, rest:40, unit:'reps', equipment:'Halteres, Banco', video:'',
+    {id:uid(), name:'Supino Reto com Halteres', muscle:'Peito', sets:3, reps:15, weight:0, rest:40, unit:'reps', equipment:'Halteres, Banco', note:'+1 série de aquecimento antes', video:'',
       execution:'Deite no banco reto com um halter em cada mão, cotovelos a cerca de 45 graus do tronco. Empurre os halteres para cima até quase se tocarem, sem travar os cotovelos, e desça controlado sentindo alongar o peito.'},
     {id:uid(), name:'Leg Press 45', muscle:'Perna', sets:3, reps:15, weight:0, rest:40, unit:'reps', equipment:'Leg Press', video:'',
       execution:'Pés na largura dos ombros na plataforma, levemente à frente. Desça controlado até cerca de 90 graus no joelho, sem tirar a lombar do encosto, e empurre sem travar os joelhos no topo.'},
@@ -386,7 +412,7 @@ function perfilViewHtml(){
     return '<button class="btn btn-ghost" style="width:100%;text-align:left;margin-bottom:8px;padding:14px 16px;font-size:15px;" onclick="selectProfile(\''+p+'\')">👤 '+p+'</button>';
   }).join('');
   return '<div style="text-align:center;padding:50px 10px 24px;">'
-    + '<h1 style="font-size:26px;">Treino<span style="color:var(--accent)">Log</span></h1>'
+    + '<h1 style="font-size:26px;">Malha<span style="color:var(--accent)">Piranha</span></h1>'
     + '<div class="wk-meta" style="margin-bottom:22px;">Quem está treinando?</div></div>'
     + '<div>' + (list || '<div class="empty">Nenhum perfil ainda. Crie o primeiro abaixo.</div>') + '</div>'
     + '<div style="margin-top:14px;">'
@@ -647,6 +673,12 @@ function deleteWorkout(id){
   state.confirmDeleteWorkoutId = null;
   saveData(); render();
 }
+function moveWorkout(idx, dir){
+  const j = idx + dir;
+  if(j < 0 || j >= state.workouts.length) return;
+  const tmp = state.workouts[idx]; state.workouts[idx] = state.workouts[j]; state.workouts[j] = tmp;
+  saveData(); render();
+}
 function moveExercise(wk, idx, dir){
   const j = idx + dir;
   if(j < 0 || j >= wk.exercises.length) return;
@@ -666,6 +698,11 @@ function submitAddExercise(wk){
   const rest = Number(document.getElementById('nex-rest').value) || 60;
   if(!name){ showToast('Digite um nome para o exercício.'); return; }
   wk.exercises.push({id:uid(), name:name, muscle:muscle, sets:sets, reps:reps, weight:weight, rest:rest, equipment:'Livre/Máquina', execution:'', video:'', unit:'reps'});
+  if(state.session && state.session.workoutId === wk.id){
+    const newEx = wk.exercises[wk.exercises.length-1];
+    state.session.entries[newEx.id] = { sets: Array.from({length: newEx.sets || 1}, function(){ return {weight: newEx.weight, reps: newEx.reps, done:false}; }) };
+    saveSession();
+  }
   saveData(); render();
 }
 function addExerciseFormHtml(){
@@ -762,7 +799,6 @@ function cancelSession(){
 }
 
 function openExercise(exId){
-  if(state.editMode) return;
   state.activeExerciseId = exId;
   state.activeTab = 'execucao';
   state.view = 'exercicio';
@@ -895,7 +931,8 @@ function treinoViewHtml(){
 
   const header = inSession ?
     '<div class="wk-header"><div><h2>'+wk.name+'</h2><div class="wk-meta">Treino em andamento</div></div>'
-    + '<div class="btn-row"><button class="btn btn-ghost btn-sm" onclick="cancelSession()">Cancelar</button></div></div>' :
+    + '<div class="btn-row"><button class="btn btn-ghost btn-sm" onclick="state.editMode=!state.editMode;render()">'+(state.editMode?'Concluir':'Editar')+'</button>'
+    + '<button class="btn btn-ghost btn-sm" onclick="cancelSession()">Cancelar</button></div></div>' :
     '<div class="wk-header"><div><h2>'+wk.name+'</h2><div class="wk-meta">'+wk.exercises.length+' exercícios'+(wk.note?(' · '+wk.note):'')+'</div></div>'
     + '<div class="btn-row"><button class="btn btn-ghost btn-sm" onclick="state.editMode=!state.editMode;render()">'+(state.editMode?'Concluir':'Editar')+'</button>'
     + (!state.editMode ? '<button class="btn btn-primary btn-sm" onclick="startSession(activeWorkout())">Iniciar</button>' : '') + '</div></div>';
@@ -912,11 +949,13 @@ function treinoViewHtml(){
     let statusHtml = '';
     if(inSession){
       const entry = state.session.entries[ex.id];
-      const doneCount = entry.sets.filter(function(s){return s.done;}).length;
-      statusHtml = '<div class="ex-status '+(doneCount===entry.sets.length?'active':'')+'">'+doneCount+'/'+entry.sets.length+'</div>';
+      if(entry){
+        const doneCount = entry.sets.filter(function(s){return s.done;}).length;
+        statusHtml = '<div class="ex-status '+(doneCount===entry.sets.length?'active':'')+'">'+doneCount+'/'+entry.sets.length+'</div>';
+      }
     }
     let editControls = '';
-    if(state.editMode && !inSession){
+    if(state.editMode){
       editControls = '<div style="display:flex;gap:6px;margin-top:12px;border-top:1px solid var(--border);padding-top:10px;">'
         + '<button class="btn btn-ghost btn-sm" style="flex:1;" onclick="event.stopPropagation();moveExercise(activeWorkout(),'+i+',-1)">↑ Subir</button>'
         + '<button class="btn btn-ghost btn-sm" style="flex:1;" onclick="event.stopPropagation();moveExercise(activeWorkout(),'+i+',1)">↓ Descer</button>'
@@ -924,7 +963,7 @@ function treinoViewHtml(){
     }
     const noteHtml = ex.note ? ' · <em>'+ex.note+'</em>' : '';
     const unitLabel = ex.unit === 'seg' ? 'seg' : '';
-    return '<div class="ex-card" onclick="openExercise(\''+ex.id+'\')" style="'+(state.editMode?'cursor:default':'')+'">'
+    return '<div class="ex-card" onclick="if(!state.editMode) openExercise(\''+ex.id+'\')" style="'+(state.editMode?'cursor:default':'')+'">'
       + '<div class="ex-card-main"><div class="ex-thumb" style="background:'+color+'18;">'+muscleIconSvg(ex.muscle, 34)+'</div>'
       + '<div class="ex-info"><div class="ex-name"><span class="ex-idx">'+(i+1)+'</span>'+ex.name+'</div>'
       + '<div class="ex-equip">'+ex.equipment+'</div>'
@@ -933,7 +972,7 @@ function treinoViewHtml(){
   }).join('');
 
   const deleteLabel = state.confirmDeleteWorkoutId === wk.id ? 'Toque de novo para confirmar a exclusão' : 'Excluir treino completo';
-  const editExtra = (state.editMode && !inSession) ? addExerciseFormHtml() + '<button class="btn btn-danger" style="margin-top:14px;width:100%" onclick="deleteWorkout(\''+wk.id+'\')">'+deleteLabel+'</button>' : '';
+  const editExtra = state.editMode ? addExerciseFormHtml() + '<button class="btn btn-danger" style="margin-top:14px;width:100%" onclick="deleteWorkout(\''+wk.id+'\')">'+deleteLabel+'</button>' : '';
   const finishBar = inSession ? '<div class="finish-bar"><button class="btn btn-primary" onclick="finishSession()">Finalizar treino</button></div>' : '';
 
   return header + stripHtml + cards + editExtra + finishBar;
@@ -963,14 +1002,18 @@ function exercicioViewHtml(){
   let setsHtml = '';
   if(inSession){
     const entry = state.session.entries[ex.id];
-    const firstPendingIdx = entry.sets.findIndex(function(s){ return !s.done; });
-    setsHtml = '<h3 style="font-size:14px;margin:0 0 10px;">Registrar séries</h3><div class="setgrid">' + entry.sets.map(function(st, si){
-      const isNext = si === firstPendingIdx;
-      return '<div class="setrow '+(isNext?'active-set':'')+'"><div class="slabel">'+(si+1)+'</div>'
-        + '<input type="number" inputmode="decimal" value="'+st.weight+'" placeholder="kg" onchange="updateSetField(\''+ex.id+'\','+si+',\'weight\',this.value)">'
-        + '<input type="number" inputmode="numeric" value="'+st.reps+'" placeholder="'+(ex.unit==='seg'?'seg':'reps')+'" onchange="updateSetField(\''+ex.id+'\','+si+',\'reps\',this.value)">'
-        + '<button class="donebtn '+(st.done?'done':'')+'" onclick="toggleSet(\''+ex.id+'\','+si+')">'+(st.done?'✓':'')+'</button></div>';
-    }).join('') + '</div><button class="addset-btn" onclick="addSet(\''+ex.id+'\')">+ Adicionar série extra</button>';
+    if(!entry){
+      setsHtml = '<div style="text-align:center;color:var(--text-dim);margin:16px 0;font-size:13px;">Este exercício foi adicionado agora. Volte pro treino pra começar a registrar as séries.</div>';
+    } else {
+      const firstPendingIdx = entry.sets.findIndex(function(s){ return !s.done; });
+      setsHtml = '<h3 style="font-size:14px;margin:0 0 10px;">Registrar séries</h3><div class="setgrid">' + entry.sets.map(function(st, si){
+        const isNext = si === firstPendingIdx;
+        return '<div class="setrow '+(isNext?'active-set':'')+'"><div class="slabel">'+(si+1)+'</div>'
+          + '<input type="number" inputmode="decimal" value="'+st.weight+'" placeholder="kg" onchange="updateSetField(\''+ex.id+'\','+si+',\'weight\',this.value)">'
+          + '<input type="number" inputmode="numeric" value="'+st.reps+'" placeholder="'+(ex.unit==='seg'?'seg':'reps')+'" onchange="updateSetField(\''+ex.id+'\','+si+',\'reps\',this.value)">'
+          + '<button class="donebtn '+(st.done?'done':'')+'" onclick="toggleSet(\''+ex.id+'\','+si+')">'+(st.done?'✓':'')+'</button></div>';
+      }).join('') + '</div><button class="addset-btn" onclick="addSet(\''+ex.id+'\')">+ Adicionar série extra</button>';
+    }
   } else {
     setsHtml = '<div style="text-align:center;color:var(--text-dim);margin:16px 0;font-size:13px;">Inicie o treino na tela anterior para registrar cargas e repetições.</div>';
   }
@@ -1109,6 +1152,23 @@ function historyViewHtml(){
   }).join('');
 }
 
+function workoutMenuHtml(){
+  const inSession = !!state.session;
+  return '<div class="wgrid">' + state.workouts.map(function(w, i){
+    const isActive = w.id === state.activeWorkoutId;
+    const isSessionWk = inSession && state.session.workoutId === w.id;
+    let reorderControls = '';
+    if(state.editMode){
+      reorderControls = '<div class="wchip2-reorder">'
+        + '<button onclick="event.stopPropagation();moveWorkout('+i+',-1)" '+(i===0?'disabled':'')+'>◀</button>'
+        + '<button onclick="event.stopPropagation();moveWorkout('+i+',1)" '+(i===state.workouts.length-1?'disabled':'')+'>▶</button>'
+        + '</div>';
+    }
+    return '<div class="wchip2 '+(isActive?'active':'')+' '+(isSessionWk?'in-session':'')+'" onclick="state.activeWorkoutId=\''+w.id+'\';render()">'
+      + '<span class="wchip2-name">'+w.name+(isSessionWk?' 🔴':'')+'</span>' + reorderControls + '</div>';
+  }).join('') + '<div class="wchip2 add" onclick="startAddWorkout()">+ Novo</div></div>';
+}
+
 function render(){
   if(!state.profile){
     document.getElementById('app').innerHTML = perfilViewHtml();
@@ -1118,17 +1178,13 @@ function render(){
   if(state.view === 'exercicio'){
     content = exercicioViewHtml();
   } else {
-    const chips = state.workouts.map(function(w){
-      return '<div class="wchip '+(w.id===state.activeWorkoutId && !state.session ? 'active':'')+'" onclick="if(!state.session){state.activeWorkoutId=\''+w.id+'\';state.editMode=false;render();}">'+w.name+'</div>';
-    }).join('') + '<div class="wchip add" onclick="if(!state.session) startAddWorkout()">+ Novo</div>';
-
-    const addWorkoutForm = (state.addingWorkout && !state.session) ?
+    const addWorkoutForm = state.addingWorkout ?
       '<div class="add-ex-form"><input id="new-workout-input" placeholder="Nome do novo treino (ex: Costas e Bíceps)" onkeydown="if(event.key===\'Enter\') submitAddWorkout()">'
       + '<div style="display:flex;gap:8px;"><button class="btn btn-primary" style="flex:1;" onclick="submitAddWorkout()">Criar</button>'
       + '<button class="btn btn-ghost" style="flex:1;" onclick="state.addingWorkout=false;render()">Cancelar</button></div></div>' : '';
 
     content = state.view==='treino'
-      ? '<div class="chip-row">'+chips+'</div>' + addWorkoutForm + treinoViewHtml()
+      ? workoutMenuHtml() + addWorkoutForm + treinoViewHtml()
       : state.view==='progresso'
       ? '<div class="section-label">Sua evolução</div>' + dashboardViewHtml()
       : '<div class="section-label">Sessões anteriores</div>'
@@ -1140,7 +1196,7 @@ function render(){
   }
 
   const html = (state.view !== 'exercicio' ?
-    '<div class="topbar"><h1>Treino<span>Log</span></h1><div style="display:flex;align-items:center;gap:8px;">'
+    '<div class="topbar"><h1>Malha<span>Piranha</span></h1><div style="display:flex;align-items:center;gap:8px;">'
     + '<button class="btn btn-ghost btn-sm" onclick="switchProfile()" title="Trocar perfil">👤 '+state.profile+'</button>'
     + '</div></div>'
     + '<div class="view-toggle" style="margin-bottom:14px;">'

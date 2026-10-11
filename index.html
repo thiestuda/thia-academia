@@ -898,39 +898,75 @@ function beep(freq, dur){
 }
 
 // ---------- Notificações do descanso (aviso de fim + "ilha dinâmica" aproximada) ----------
+// iOS (mesmo com o app instalado na Tela de Início) só mostra notificações via Service Worker
+// (registration.showNotification), NÃO via "new Notification()". Por isso essa é a via principal;
+// o construtor direto só é usado como fallback em navegadores desktop que não têm Service Worker.
+function getSwRegistration(){
+  if(!('serviceWorker' in navigator)) return Promise.resolve(null);
+  return navigator.serviceWorker.ready.then(function(reg){ return reg; }).catch(function(){ return null; });
+}
 function requestNotifyPermission(){
   try{
-    if('Notification' in window && Notification.permission === 'default'){
-      Notification.requestPermission();
+    if(!('Notification' in window)){
+      showToast('Este navegador não suporta notificações.');
+      return;
     }
-  }catch(e){ }
+    if(Notification.permission === 'granted') return;
+    if(Notification.permission === 'denied'){
+      showToast('Notificações estão bloqueadas pro app. Ative manualmente nas permissões do navegador/site pra esse endereço.');
+      return;
+    }
+    Notification.requestPermission().then(function(perm){
+      if(perm === 'granted'){
+        showToast('Notificações ativadas! Vamos te avisar quando o descanso acabar.');
+      } else {
+        showToast('Notificação não liberada (permissão: '+perm+'). Pode ativar depois nas configurações do navegador.');
+      }
+    }).catch(function(e){
+      showToast('Erro ao pedir permissão: '+(e && e.message ? e.message : e));
+    });
+  }catch(e){
+    showToast('Erro ao configurar notificações: '+(e && e.message ? e.message : e));
+  }
 }
-let liveRestNotif = null;
-function updateLiveRestNotification(){
+function showAppNotification(title, options){
   try{
     if(!('Notification' in window) || Notification.permission !== 'granted') return;
-    const mm = String(Math.floor(state.timer.remaining/60)).padStart(2,'0');
-    const ss = String(state.timer.remaining%60).padStart(2,'0');
-    if(liveRestNotif) liveRestNotif.close();
-    liveRestNotif = new Notification('⏱ Descansando — '+mm+':'+ss, {
-      body: 'Toque pra voltar pro treino assim que acabar.',
-      tag: 'rest-timer-live', silent: true, renotify: false
+    getSwRegistration().then(function(reg){
+      if(reg && reg.showNotification){
+        reg.showNotification(title, options);
+      } else {
+        try{ new Notification(title, options); }catch(e){ }
+      }
     });
-    liveRestNotif.onclick = function(){ window.focus(); };
   }catch(e){ }
+}
+function closeAppNotifications(tag){
+  try{
+    getSwRegistration().then(function(reg){
+      if(!reg || !reg.getNotifications) return;
+      reg.getNotifications({tag: tag}).then(function(list){
+        list.forEach(function(n){ n.close(); });
+      }).catch(function(){ });
+    });
+  }catch(e){ }
+}
+function updateLiveRestNotification(){
+  const mm = String(Math.floor(state.timer.remaining/60)).padStart(2,'0');
+  const ss = String(state.timer.remaining%60).padStart(2,'0');
+  showAppNotification('⏱ Descansando — '+mm+':'+ss, {
+    body: 'Toque pra voltar pro treino assim que acabar.',
+    tag: 'rest-timer-live', silent: true, renotify: false
+  });
 }
 function closeLiveRestNotification(){
-  try{ if(liveRestNotif){ liveRestNotif.close(); liveRestNotif = null; } }catch(e){ }
+  closeAppNotifications('rest-timer-live');
 }
 function notifyRestOver(){
-  try{
-    if(!('Notification' in window) || Notification.permission !== 'granted') return;
-    const n = new Notification('Descanso concluído! 💪', {
-      body: 'Volte pro treino — a próxima série te espera.',
-      tag: 'rest-timer-done', renotify: true, silent: false
-    });
-    n.onclick = function(){ window.focus(); n.close(); };
-  }catch(e){ }
+  showAppNotification('Descanso concluído! 💪', {
+    body: 'Volte pro treino — a próxima série te espera.',
+    tag: 'rest-timer-done', renotify: true, silent: false
+  });
 }
 
 function timerTick(){

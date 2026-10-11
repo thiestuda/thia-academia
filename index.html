@@ -769,6 +769,7 @@ function addExerciseFormHtml(){
 }
 
 function startSession(wk){
+  requestNotifyPermission();
   const entries = {};
   wk.exercises.forEach(function(ex){
     entries[ex.id] = { sets: Array.from({length: ex.sets || 1}, function(){ return {weight: ex.weight, reps: ex.reps, done:false}; }) };
@@ -776,6 +777,16 @@ function startSession(wk){
   state.session = { id: uid(), workoutId: wk.id, workoutName: wk.name, startedAt: Date.now(), finishedAt: null, entries: entries };
   state.editMode = false;
   saveSession(); render();
+}
+function findNextPendingExercise(wk, fromIdx){
+  const n = wk.exercises.length;
+  for(let step = 1; step <= n; step++){
+    const idx = (fromIdx + step) % n;
+    const ex = wk.exercises[idx];
+    const entry = state.session.entries[ex.id];
+    if(entry && !entry.sets.every(function(s){ return s.done; })) return ex;
+  }
+  return null;
 }
 function toggleSet(exId, setIdx){
   if(!state.session) return;
@@ -790,15 +801,17 @@ function toggleSet(exId, setIdx){
     startTimer(ex ? (ex.rest || 60) : 60);
 
     const allDone = entry.sets.every(function(s){ return s.done; });
-    if(allDone && exIndex < wk.exercises.length - 1){
-      const nextEx = wk.exercises[exIndex + 1];
-      setTimeout(function(){
-        if(state.view === 'exercicio' && state.activeExerciseId === exId){
-          openExercise(nextEx.id);
-        }
-      }, 700);
-    } else if(allDone){
-      setTimeout(function(){ showToast('Todos os exercícios concluídos! Toque em "Finalizar treino" para salvar.'); }, 700);
+    if(allDone){
+      const nextPending = findNextPendingExercise(wk, exIndex);
+      if(nextPending){
+        setTimeout(function(){
+          if(state.view === 'exercicio' && state.activeExerciseId === exId){
+            openExercise(nextPending.id);
+          }
+        }, 700);
+      } else {
+        setTimeout(function(){ showToast('Todos os exercícios concluídos! Toque em "Finalizar treino" para salvar.'); }, 700);
+      }
     }
   }
   saveSession(); render();
@@ -856,6 +869,15 @@ function openExercise(exId){
   state.view = 'exercicio';
   render();
 }
+function goToExerciseOffset(delta){
+  const wk = activeWorkout();
+  if(!wk) return;
+  const idx = wk.exercises.findIndex(function(e){ return e.id === state.activeExerciseId; });
+  if(idx === -1) return;
+  const newIdx = idx + delta;
+  if(newIdx < 0 || newIdx >= wk.exercises.length) return;
+  openExercise(wk.exercises[newIdx].id);
+}
 function closeExercise(){
   state.activeExerciseId = null;
   state.view = 'treino';
@@ -874,6 +896,43 @@ function beep(freq, dur){
     o.start(); o.stop(audioCtx.currentTime + dur/1000);
   }catch(e){ }
 }
+
+// ---------- Notificações do descanso (aviso de fim + "ilha dinâmica" aproximada) ----------
+function requestNotifyPermission(){
+  try{
+    if('Notification' in window && Notification.permission === 'default'){
+      Notification.requestPermission();
+    }
+  }catch(e){ }
+}
+let liveRestNotif = null;
+function updateLiveRestNotification(){
+  try{
+    if(!('Notification' in window) || Notification.permission !== 'granted') return;
+    const mm = String(Math.floor(state.timer.remaining/60)).padStart(2,'0');
+    const ss = String(state.timer.remaining%60).padStart(2,'0');
+    if(liveRestNotif) liveRestNotif.close();
+    liveRestNotif = new Notification('⏱ Descansando — '+mm+':'+ss, {
+      body: 'Toque pra voltar pro treino assim que acabar.',
+      tag: 'rest-timer-live', silent: true, renotify: false
+    });
+    liveRestNotif.onclick = function(){ window.focus(); };
+  }catch(e){ }
+}
+function closeLiveRestNotification(){
+  try{ if(liveRestNotif){ liveRestNotif.close(); liveRestNotif = null; } }catch(e){ }
+}
+function notifyRestOver(){
+  try{
+    if(!('Notification' in window) || Notification.permission !== 'granted') return;
+    const n = new Notification('Descanso concluído! 💪', {
+      body: 'Volte pro treino — a próxima série te espera.',
+      tag: 'rest-timer-done', renotify: true, silent: false
+    });
+    n.onclick = function(){ window.focus(); n.close(); };
+  }catch(e){ }
+}
+
 function timerTick(){
   if(!state.timer.running) return;
   const remaining = Math.max(0, Math.round((state.timer.endTime - Date.now()) / 1000));
@@ -881,8 +940,12 @@ function timerTick(){
   if(remaining <= 0){
     state.timer.remaining = 0; state.timer.running = false; state.timer.done = true;
     clearInterval(state.timer.tickHandle);
+    closeLiveRestNotification();
+    notifyRestOver();
     beep(880,150); setTimeout(function(){beep(880,150);},220); setTimeout(function(){beep(1100,220);},440);
     if(navigator.vibrate) navigator.vibrate([200,100,200]);
+  } else if(remaining % 5 === 0){
+    updateLiveRestNotification();
   }
   renderTimerOnly();
 }
@@ -894,6 +957,7 @@ function startTimer(seconds){
   state.timer.running = true;
   state.timer.done = false;
   state.timer.tickHandle = setInterval(timerTick, 1000);
+  updateLiveRestNotification();
   render();
 }
 function adjustTimer(delta){
@@ -919,6 +983,7 @@ function togglePauseTimer(){
 }
 function stopTimer(){
   if(state.timer.tickHandle) clearInterval(state.timer.tickHandle);
+  closeLiveRestNotification();
   state.timer = { running:false, remaining:0, total:0, endTime:null, tickHandle:null, done:false };
 }
 function dismissTimer(){ stopTimer(); render(); }
@@ -1070,7 +1135,15 @@ function exercicioViewHtml(){
     setsHtml = '<div style="text-align:center;color:var(--text-dim);margin:16px 0;font-size:13px;">Inicie o treino na tela anterior para registrar cargas e repetições.</div>';
   }
 
-  return '<div class="ex-detail-header"><div class="btn-back" onclick="closeExercise()">←</div><h2 style="margin:0;font-size:17px;text-transform:none;letter-spacing:0;">'+ex.name+'</h2></div>'
+  const exIdx = wk.exercises.findIndex(function(e){ return e.id === ex.id; });
+  const atStart = exIdx <= 0;
+  const atEnd = exIdx >= wk.exercises.length - 1;
+  const navHtml = '<div style="display:flex;gap:6px;">'
+    + '<button class="btn-back" style="width:36px;height:36px;font-size:16px;'+(atStart?'opacity:0.25;pointer-events:none;':'')+'" onclick="goToExerciseOffset(-1)">‹</button>'
+    + '<button class="btn-back" style="width:36px;height:36px;font-size:16px;'+(atEnd?'opacity:0.25;pointer-events:none;':'')+'" onclick="goToExerciseOffset(1)">›</button>'
+    + '</div>';
+
+  return '<div class="ex-detail-header"><div class="btn-back" onclick="closeExercise()">←</div><h2 style="margin:0;font-size:17px;text-transform:none;letter-spacing:0;flex:1;">'+ex.name+'</h2>'+navHtml+'</div>'
     + '<div class="ex-detail-img">'+muscleIconSvg(ex.muscle, 110)+'</div>'
     + '<div class="tabs"><div class="tab '+(state.activeTab==='execucao'?'active':'')+'" onclick="setTab(\'execucao\')">Execução</div>'
     + '<div class="tab '+(state.activeTab==='musculo'?'active':'')+'" onclick="setTab(\'musculo\')">Músculo</div>'

@@ -1,31 +1,31 @@
-const CACHE_NAME = 'treinolog-v1';
-const ASSETS = ['./', './index.html', './manifest.json', './icon.svg'];
+const CACHE_NAME = 'malha-piranha-cache-v2';
 
-self.addEventListener('install', function(event){
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(function(cache){ return cache.addAll(ASSETS); })
-  );
+// Assume o controle imediatamente, sem esperar todas as abas fecharem
+self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-self.addEventListener('activate', function(event){
+// Ao ativar, apaga QUALQUER cache antigo (de versões anteriores deste sw.js)
+// e assume o controle de todas as páginas já abertas
+self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then(function(keys){
-      return Promise.all(keys.filter(function(k){ return k !== CACHE_NAME; }).map(function(k){ return caches.delete(k); }));
-    })
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-self.addEventListener('fetch', function(event){
+// Network-first: sempre tenta buscar a versão mais nova da rede.
+// Só usa o cache como reserva se estiver offline.
+self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') return;
   event.respondWith(
-    caches.match(event.request).then(function(cached){
-      return cached || fetch(event.request).then(function(res){
-        return caches.open(CACHE_NAME).then(function(cache){
-          cache.put(event.request, res.clone());
-          return res;
-        });
-      }).catch(function(){ return cached; });
-    })
+    fetch(event.request)
+      .then((response) => {
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        return response;
+      })
+      .catch(() => caches.match(event.request))
   );
 });

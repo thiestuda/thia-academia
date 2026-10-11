@@ -903,7 +903,9 @@ function beep(freq, dur){
 // o construtor direto só é usado como fallback em navegadores desktop que não têm Service Worker.
 function getSwRegistration(){
   if(!('serviceWorker' in navigator)) return Promise.resolve(null);
-  return navigator.serviceWorker.ready.then(function(reg){ return reg; }).catch(function(){ return null; });
+  const ready = navigator.serviceWorker.ready.then(function(reg){ return reg; }).catch(function(){ return null; });
+  const timeout = new Promise(function(resolve){ setTimeout(function(){ resolve('timeout'); }, 3000); });
+  return Promise.race([ready, timeout]).then(function(result){ return result === 'timeout' ? null : result; });
 }
 function requestNotifyPermission(){
   try{
@@ -930,9 +932,57 @@ function requestNotifyPermission(){
     showToast('Erro ao configurar notificações: '+(e && e.message ? e.message : e));
   }
 }
+async function testNotification(){
+  const steps = [];
+  const hasApi = 'Notification' in window;
+  steps.push('API Notification: ' + (hasApi ? 'disponível' : 'INDISPONÍVEL neste navegador'));
+  if(!hasApi){ showNotifDebug(steps); return; }
+  steps.push('Permissão: ' + Notification.permission);
+  if(Notification.permission !== 'granted'){ showNotifDebug(steps); return; }
+  const hasSW = 'serviceWorker' in navigator;
+  steps.push('Service Worker suportado: ' + (hasSW ? 'sim' : 'não'));
+  if(!hasSW){ showNotifDebug(steps); return; }
+  let regStatus = 'verificando...';
+  try{
+    const regs = await navigator.serviceWorker.getRegistrations();
+    regStatus = regs.length ? (regs.length + ' registro(s) encontrado(s)') : 'NENHUM registro encontrado (sw.js pode não existir ou ter falhado)';
+  }catch(e){ regStatus = 'erro ao listar: ' + (e && e.message ? e.message : e); }
+  steps.push('Registros de Service Worker: ' + regStatus);
+  let reg = null;
+  try{
+    reg = await getSwRegistration();
+  }catch(e){ steps.push('getSwRegistration: erro - ' + (e && e.message ? e.message : e)); showNotifDebug(steps); return; }
+  if(!reg){
+    steps.push('navigator.serviceWorker.ready: NÃO resolveu em 3s — o Service Worker nunca ficou ativo. Esse é o problema: sem SW ativo, o iOS não tem como mostrar notificação nenhuma.');
+    showNotifDebug(steps);
+    return;
+  }
+  steps.push('navigator.serviceWorker.ready: OK, worker ativo');
+  try{
+    await reg.showNotification('🔔 Teste de notificação', { body: 'Se isso apareceu na tela, as notificações funcionam!', tag: 'test-notif' });
+    steps.push('showNotification(): chamada executada sem erro — verifique se a notificação apareceu na tela (ou no Central de Notificações).');
+  }catch(e){
+    steps.push('showNotification(): ERRO - ' + (e && e.message ? e.message : e));
+  }
+  showNotifDebug(steps);
+}
+function showNotifDebug(steps){
+  state.notifDebugText = steps.join('\n');
+  render();
+}
+function closeNotifDebug(){ state.notifDebugText = null; render(); }
+function notifDebugBoxHtml(){
+  if(!state.notifDebugText) return '';
+  return '<div class="add-ex-form"><div style="font-size:11.5px;margin-bottom:6px;color:var(--text-dim);font-weight:bold;">Diagnóstico de notificações:</div>'
+    + '<div style="white-space:pre-line;font-size:12px;line-height:1.6;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:10px;">'+state.notifDebugText+'</div>'
+    + '<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:8px;" onclick="closeNotifDebug()">Fechar</button></div>';
+}
 function notificationBannerHtml(){
   if(!('Notification' in window)) return '';
-  if(Notification.permission === 'granted') return '';
+  if(Notification.permission === 'granted'){
+    return '<div style="display:flex;justify-content:flex-end;margin:-6px 0 12px;">'
+      + '<button class="btn btn-ghost btn-sm" onclick="testNotification()">🔎 Testar notificação</button></div>' + notifDebugBoxHtml();
+  }
   const isDenied = Notification.permission === 'denied';
   const msg = isDenied
     ? 'Notificações bloqueadas. Ative manualmente no iOS: Ajustes → procure "Malha Piranha" na lista de apps (perto do final, junto com apps instalados) → Notificações → Permitir Notificações.'

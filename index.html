@@ -922,12 +922,24 @@ function requestNotifyPermission(){
       } else {
         showToast('Notificação não liberada (permissão: '+perm+'). Pode ativar depois nas configurações do navegador.');
       }
+      render();
     }).catch(function(e){
       showToast('Erro ao pedir permissão: '+(e && e.message ? e.message : e));
     });
   }catch(e){
     showToast('Erro ao configurar notificações: '+(e && e.message ? e.message : e));
   }
+}
+function notificationBannerHtml(){
+  if(!('Notification' in window)) return '';
+  if(Notification.permission === 'granted') return '';
+  const isDenied = Notification.permission === 'denied';
+  const msg = isDenied
+    ? 'Notificações bloqueadas. Ative manualmente no iOS: Ajustes → procure "Malha Piranha" na lista de apps (perto do final, junto com apps instalados) → Notificações → Permitir Notificações.'
+    : 'Ative as notificações pra ser avisado quando o descanso de cada série acabar.';
+  const btn = isDenied ? '' : '<button class="btn btn-primary btn-sm" style="flex-shrink:0;" onclick="requestNotifyPermission()">🔔 Ativar</button>';
+  return '<div class="save-warning" style="background:var(--surface-2);border-color:var(--border);color:var(--text-dim);flex-direction:row;align-items:center;gap:10px;">'
+    + '<div style="flex:1;font-size:12px;">'+msg+'</div>' + btn + '</div>';
 }
 function showAppNotification(title, options){
   try{
@@ -1366,6 +1378,7 @@ function render(){
     + '<button class="'+(state.view==='historico'?'active':'')+'" onclick="state.view=\'historico\';render()">Histórico</button>'
     + '</div>' : '')
     + '<div id="save-warning-slot">'+saveWarningHtml()+'</div>'
+    + (state.view !== 'exercicio' ? notificationBannerHtml() : '')
     + content + '<div id="timer-slot">'+timerBarHtml()+'</div>'
     + aiFabHtml() + aiPanelHtml();
 
